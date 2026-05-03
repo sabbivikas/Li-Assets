@@ -15,9 +15,9 @@ import colors from "@/constants/colors";
  * device's appearance setting.
  */
 export function useColors() {
-  // Life Web is always dark — force dark palette regardless of system setting
-  const palette = "dark" in colors
-    ? (colors as Record<string, typeof colors.light>).dark
-    : colors.light;
+  // Life Web is always dark — force dark palette regardless of system
+  // setting. `colors.dark` is statically defined in constants/colors.ts;
+  // if it's ever removed we fall back to the light palette.
+  const palette = colors.dark ?? colors.light;
   return { ...palette, radius: colors.radius };
 }

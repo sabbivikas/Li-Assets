@@ -12,8 +12,14 @@ import Svg, {
   ClipPath,
 } from "react-native-svg";
 
-const AnimatedG = Animated.createAnimatedComponent(G);
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+// `react-native-svg`'s G/Circle types don't declare a `style` prop, but
+// the underlying components forward it just fine — we use it for the
+// animated transform on the rotating continent strip and the pulsing
+// pin. Cast to `any` so the AnimatedProps type doesn't strip `style`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const AnimatedG = Animated.createAnimatedComponent(G) as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const AnimatedCircle = Animated.createAnimatedComponent(Circle) as any;
 
 interface Props {
   size?: number;

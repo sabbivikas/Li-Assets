@@ -316,7 +316,7 @@ export default function HomeScreen() {
               pinLat={lat}
               pinLng={lng}
               locating={requestingLoc}
-              density={Math.min(1, totalSpecies / 50)}
+              density={Math.min(1, (species?.length ?? 0) / 50)}
             />
             <Pressable
               onPress={handleUseMyLocation}

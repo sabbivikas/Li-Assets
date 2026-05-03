@@ -105,6 +105,15 @@ export function RiveAnimation({
 }: RiveAnimationProps) {
   const mod = loadRiveModule();
   const riveRef = useRef<RiveRef | null>(null);
+  // Tracks whether the native Rive view has fired its first `onPlay`,
+  // i.e. it is mounted and the runtime has loaded. We gate trigger
+  // dispatch on this so triggers fired before the runtime is ready
+  // are not silently dropped.
+  const loadedRef = useRef(false);
+  // When the native runtime throws (corrupt file, missing state
+  // machine, etc.) we flip this to fall back to the on-brand RN
+  // visuals instead of showing a blank Rive view.
+  const [hasError, setHasError] = useState(false);
   const lastInputs = useRef<Record<string, RiveInputValue>>({});
   const inputsRef = useRef(inputs);
   inputsRef.current = inputs;
@@ -187,7 +196,7 @@ export function RiveAnimation({
     for (const t of triggers) ref.fireState(stateMachineName, t);
   }, [triggers, stateMachineName]);
 
-  if (!mod || reduceMotion || source == null) {
+  if (!mod || reduceMotion || source == null || hasError) {
     return <View style={[styles.wrap, style]}>{fallback}</View>;
   }
 
