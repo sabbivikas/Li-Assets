@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import * as Linking from "expo-linking";
 import React, { useState } from "react";
 import {
@@ -11,17 +12,31 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import {
+  Bee,
+  Bird,
+  CrayonUnderline,
+  Flower,
+  HAND_FONT,
+  LABEL_FONT,
+  Mushroom,
+  PaperBackground,
+  PAINT,
+  WobbleBox,
+  WobbleButton,
+} from "@/components/paint";
 import { useLocation } from "@/context/LocationContext";
 import { fetchNearbySpecies } from "@/services/iNaturalist";
+import {
+  buildImpactChain,
+  getEcosystemRoles,
+  getRoleLabel,
+} from "@/services/ecologyModel";
 import { withCache } from "@/services/cache";
-import { getEcosystemRoles, getRoleLabel, buildImpactChain } from "@/services/ecologyModel";
-import { useColors } from "@/hooks/useColors";
-import { RiveEmptyState } from "@/components/RiveEmptyState";
-import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
 
 type ReportType = "consumer" | "policy";
 
@@ -33,44 +48,44 @@ const STAKEHOLDERS = [
     org: "City Council",
     category: "Government",
     email: "council@yourcity.gov",
-    website: "https://yourcity.gov/council",
-    icon: "users",
-    color: "#60A5FA",
+    emoji: "🏛️",
+    color: PAINT.blue,
+    seed: 8,
   },
   {
     id: "parks",
-    name: "Parks Department",
+    name: "Parks Dept",
     role: "Director",
     org: "Parks & Recreation",
     category: "Government",
     email: "parks@yourcity.gov",
-    website: "https://yourcity.gov/parks",
-    icon: "map",
-    color: "#4ADE80",
+    emoji: "🌳",
+    color: PAINT.grass,
+    seed: 12,
   },
   {
     id: "newspaper",
-    name: "Local Newspaper",
+    name: "Local News",
     role: "Environment Reporter",
     org: "Local News",
     category: "Media",
     email: "environment@localnews.com",
-    website: "https://localnews.com",
-    icon: "file-text",
-    color: "#FBBF24",
+    emoji: "📰",
+    color: PAINT.orange,
+    seed: 16,
   },
   {
     id: "nonprofit",
-    name: "Environmental Nonprofit",
+    name: "Nonprofit",
     role: "Conservation Director",
     org: "Local Conservation Group",
     category: "Nonprofit",
     email: "info@localconservation.org",
-    website: "https://localconservation.org",
-    icon: "heart",
-    color: "#A78BFA",
+    emoji: "❤️",
+    color: PAINT.pink,
+    seed: 20,
   },
-];
+] as const;
 
 function generateReport(
   type: ReportType,
@@ -160,14 +175,11 @@ This report was generated using community science data and simplified ecological
 }
 
 export default function ReportsScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { lat, lng, radius, cityName } = useLocation();
 
   const [reportType, setReportType] = useState<ReportType>("consumer");
   const [generatedReport, setGeneratedReport] = useState<string | null>(null);
-  const [selectedStakeholder, setSelectedStakeholder] = useState<string | null>(null);
-  const [editableEmail, setEditableEmail] = useState("");
 
   const { data: species, isLoading: speciesLoading } = useQuery({
     queryKey: ["nearby-species", lat, lng, radius],
@@ -179,14 +191,24 @@ export default function ReportsScreen() {
   });
 
   const topSpecies = species?.[0];
+  const topPhoto =
+    topSpecies?.taxon.default_photo?.medium_url ||
+    topSpecies?.taxon.default_photo?.square_url;
 
   function handleGenerate() {
     if (!topSpecies) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const taxon = topSpecies.taxon;
-    const roles = getEcosystemRoles(taxon.iconic_taxon_name, taxon.preferred_common_name);
+    const roles = getEcosystemRoles(
+      taxon.iconic_taxon_name,
+      taxon.preferred_common_name
+    );
     const role = getRoleLabel(roles[0]);
-    const chain = buildImpactChain(taxon.name, taxon.iconic_taxon_name, taxon.preferred_common_name);
+    const chain = buildImpactChain(
+      taxon.name,
+      taxon.iconic_taxon_name,
+      taxon.preferred_common_name
+    );
     const report = generateReport(
       reportType,
       cityName || "Your Location",
@@ -207,164 +229,271 @@ export default function ReportsScreen() {
     Alert.alert("Copied!", "Report copied to clipboard.");
   }
 
-  function handleEmail(stakeholder: (typeof STAKEHOLDERS)[0]) {
-    const subject = encodeURIComponent(`Biodiversity Report — ${cityName || "Local Area"}`);
-    const body = encodeURIComponent(generatedReport || editableEmail);
-    Linking.openURL(`mailto:${stakeholder.email}?subject=${subject}&body=${body}`);
+  function handleEmail(stakeholder: (typeof STAKEHOLDERS)[number]) {
+    if (!generatedReport) {
+      Alert.alert(
+        "Generate a report first",
+        "Tap Generate Report above before sending."
+      );
+      return;
+    }
+    const subject = encodeURIComponent(
+      `Biodiversity Report — ${cityName || "Local Area"}`
+    );
+    const body = encodeURIComponent(generatedReport);
+    Linking.openURL(
+      `mailto:${stakeholder.email}?subject=${subject}&body=${body}`
+    );
   }
 
   const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
   const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
+  const speciesName =
+    topSpecies?.taxon.preferred_common_name || topSpecies?.taxon.name || "—";
+  const sciName = topSpecies?.taxon.name || "";
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.earthDark }]}>
+    <View style={styles.container}>
+      <PaperBackground />
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: topInsets + 16, paddingBottom: bottomInsets + 100 },
+          {
+            paddingTop: topInsets + 18,
+            paddingBottom: bottomInsets + 110,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Civic Reports</Text>
-        <Text style={[styles.subtitle, { color: "#64748B" }]}>
-          Generate biodiversity reports for local leaders and media.
+        <Text style={styles.title}>Make a Report</Text>
+        <CrayonUnderline width={180} color={PAINT.orange} seed={2} />
+        <Text style={styles.subtitle}>
+          Tell your local leaders what&apos;s happening.
         </Text>
 
-        {/* Report type selector */}
-        <View style={[styles.typeSelector, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}>
-          <Pressable
-            onPress={() => setReportType("consumer")}
-            style={[
-              styles.typeTab,
-              reportType === "consumer" && { backgroundColor: "#4ADE80" },
-            ]}
-          >
-            <Text style={[styles.typeText, { color: reportType === "consumer" ? "#080C14" : "#64748B" }]}>
-              Summary
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setReportType("policy")}
-            style={[
-              styles.typeTab,
-              reportType === "policy" && { backgroundColor: "#4ADE80" },
-            ]}
-          >
-            <Text style={[styles.typeText, { color: reportType === "policy" ? "#080C14" : "#64748B" }]}>
-              Policy Report
-            </Text>
-          </Pressable>
+        {/* Type selector */}
+        <View style={styles.typeRow}>
+          {(["consumer", "policy"] as ReportType[]).map((t, i) => {
+            const active = reportType === t;
+            return (
+              <Pressable
+                key={t}
+                onPress={() => {
+                  setReportType(t);
+                  setGeneratedReport(null);
+                }}
+                style={{ flex: 1 }}
+              >
+                <WobbleBox
+                  width={171}
+                  height={46}
+                  fill={active ? PAINT.sun : "white"}
+                  seed={i + 50}
+                  padding={0}
+                >
+                  <View style={styles.typeInner}>
+                    <Text style={styles.typeText}>
+                      {t === "consumer" ? "Summary" : "Policy"}
+                    </Text>
+                  </View>
+                </WobbleBox>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* Featured species */}
-        {speciesLoading && !topSpecies ? (
-          <View style={[styles.featuredCard, { backgroundColor: "#0F1824", borderColor: "#1E293B", alignItems: "center" }]}>
-            <RiveLoadingShimmer hero width={120} height={120} />
-          </View>
-        ) : null}
-        {!speciesLoading && !topSpecies ? (
-          <View style={[styles.featuredCard, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}>
-            <RiveEmptyState
-              icon="map-pin"
-              title="No nearby species yet"
-              description="Set or refresh your location to generate a report."
-            />
-          </View>
-        ) : null}
-        {topSpecies && (
-          <View style={[styles.featuredCard, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}>
-            <View style={styles.featuredHeader}>
-              <Feather name="star" size={14} color="#FBBF24" />
-              <Text style={[styles.featuredLabel, { color: "#FBBF24" }]}>Featured Species</Text>
+        {/* Postcard featured species */}
+        <View style={styles.postcardWrap}>
+          {/* tape */}
+          <View style={[styles.tape, styles.tapeLeft]} />
+          <View style={[styles.tape, styles.tapeRight]} />
+
+          <View style={styles.postcard}>
+            <Text style={styles.postcardKicker}>
+              ~ Biodiversity Bulletin ~
+            </Text>
+            <Text style={styles.postcardTitle} numberOfLines={2}>
+              {topSpecies
+                ? `The ${speciesName} of ${cityName || "your area"}`
+                : "Pick a featured species"}
+            </Text>
+            <Text style={styles.postcardMeta}>
+              📍 {cityName || "Your Location"} · {radius}km · drawn today
+            </Text>
+
+            {/* hero strip */}
+            <View style={styles.hero}>
+              {topPhoto ? (
+                <Image
+                  source={{ uri: topPhoto }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, styles.heroFallback]}>
+                  <Bee size={48} />
+                  <Flower size={48} petal={PAINT.pink} />
+                  <Bird size={48} />
+                </View>
+              )}
             </View>
-            <Text style={styles.featuredName}>
-              {topSpecies.taxon.preferred_common_name || topSpecies.taxon.name}
-            </Text>
-            <Text style={[styles.featuredSci, { color: "#64748B" }]}>{topSpecies.taxon.name}</Text>
-            <Text style={[styles.featuredObs, { color: "#94A3B8" }]}>
-              {topSpecies.count.toLocaleString()} nearby observations
+
+            {/* stats */}
+            {topSpecies && (
+              <View style={styles.statRow}>
+                <PostcardStat
+                  n={String(topSpecies.count)}
+                  l="sightings"
+                  c={PAINT.sun}
+                  seed={3}
+                />
+                <PostcardStat
+                  n={`${radius}km`}
+                  l="radius"
+                  c={PAINT.blue}
+                  seed={9}
+                />
+                <PostcardStat
+                  n={getRoleLabel(
+                    getEcosystemRoles(
+                      topSpecies.taxon.iconic_taxon_name,
+                      topSpecies.taxon.preferred_common_name
+                    )[0]
+                  )
+                    .split(" ")[0]
+                    .toUpperCase()}
+                  l="role"
+                  c={PAINT.grassDeep}
+                  seed={17}
+                />
+              </View>
+            )}
+
+            {/* what we found */}
+            {topSpecies && (
+              <View style={styles.finding}>
+                <Text style={styles.findingTitle}>What we found:</Text>
+                <Text style={styles.findingBody}>
+                  Community scientists logged{" "}
+                  <Text style={styles.highlight}>
+                    {topSpecies.count} research-grade sightings
+                  </Text>{" "}
+                  of {speciesName} (
+                  <Text style={styles.findingItalic}>{sciName}</Text>) within
+                  {" "}
+                  {radius}km of {cityName || "your location"}.
+                </Text>
+              </View>
+            )}
+
+            <Text style={styles.signoff}>
+              — drawn from iNaturalist sightings ✏️
             </Text>
           </View>
-        )}
+        </View>
 
-        {/* Generate button */}
-        <Pressable
-          onPress={handleGenerate}
-          disabled={!topSpecies}
-          style={({ pressed }) => [
-            styles.generateBtn,
-            {
-              backgroundColor: topSpecies ? "#4ADE80" : "#1E293B",
-              opacity: pressed ? 0.85 : 1,
-            },
-          ]}
-        >
-          <Feather name="file-text" size={18} color={topSpecies ? "#080C14" : "#475569"} />
-          <Text style={[styles.generateText, { color: topSpecies ? "#080C14" : "#475569" }]}>
-            Generate Report
-          </Text>
-        </Pressable>
+        {/* Generate */}
+        <View style={{ alignItems: "center", marginTop: 20 }}>
+          <WobbleButton
+            label={generatedReport ? "Re-draw Report" : "Generate Report"}
+            color={topSpecies ? PAINT.grass : PAINT.paperDeep}
+            width={300}
+            height={58}
+            seed={9}
+            onPress={handleGenerate}
+            disabled={!topSpecies || speciesLoading}
+            textColor={PAINT.ink}
+          />
+        </View>
 
-        {/* Generated report */}
+        {/* Generated report textbox */}
         {generatedReport && (
           <View style={styles.reportSection}>
             <View style={styles.reportHeader}>
-              <Text style={[styles.reportLabel, { color: "#FFFFFF" }]}>Generated Report</Text>
-              <Pressable onPress={handleCopy} style={[styles.copyBtn, { backgroundColor: "#0F1824" }]}>
-                <Feather name="copy" size={14} color="#4ADE80" />
-                <Text style={[styles.copyText, { color: "#4ADE80" }]}>Copy</Text>
+              <Text style={styles.reportLabel}>your report ↓</Text>
+              <Pressable onPress={handleCopy}>
+                <WobbleBox
+                  width={92}
+                  height={36}
+                  fill={PAINT.cream}
+                  seed={71}
+                  padding={0}
+                >
+                  <View style={styles.copyInner}>
+                    <Feather name="copy" size={14} color={PAINT.ink} />
+                    <Text style={styles.copyText}>copy</Text>
+                  </View>
+                </WobbleBox>
               </Pressable>
             </View>
-            <View style={[styles.reportBox, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}>
-              <Text style={[styles.reportText, { color: "#CBD5E1" }]}>{generatedReport}</Text>
-            </View>
+            <WobbleBox
+              width={358}
+              height={Math.min(420, 80 + generatedReport.length * 0.32)}
+              fill={PAINT.cream}
+              seed={77}
+              padding={14}
+            >
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 8 }}
+                nestedScrollEnabled
+              >
+                <Text style={styles.reportText}>{generatedReport}</Text>
+              </ScrollView>
+            </WobbleBox>
           </View>
         )}
 
-        {/* Outreach section */}
-        <View style={styles.outreachSection}>
-          <Text style={styles.outreachTitle}>Send to Local Leaders</Text>
-          <Text style={[styles.outreachSubtitle, { color: "#64748B" }]}>
-            Tap to open your email app with a pre-filled template. You review and send.
+        {/* Send to */}
+        <View style={{ marginTop: 28 }}>
+          <Text style={styles.sendTitle}>send to →</Text>
+          <Text style={styles.sendSub}>
+            taps open your email app with a pre-filled draft. you review and
+            send.
           </Text>
-
-          {STAKEHOLDERS.map((s) => (
-            <Pressable
-              key={s.id}
-              onPress={() => {
-                if (!generatedReport) {
-                  Alert.alert("Generate a report first", "Tap Generate Report above before sending.");
-                  return;
-                }
-                handleEmail(s);
-              }}
-              style={({ pressed }) => [
-                styles.stakeholderCard,
-                {
-                  backgroundColor: "#0F1824",
-                  borderColor: "#1E293B",
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
-            >
-              <View style={[styles.stakeholderIcon, { backgroundColor: s.color + "15" }]}>
-                <Feather name={s.icon as any} size={18} color={s.color} />
-              </View>
-              <View style={styles.stakeholderInfo}>
-                <Text style={styles.stakeholderName}>{s.name}</Text>
-                <Text style={[styles.stakeholderRole, { color: "#64748B" }]}>{s.role} · {s.org}</Text>
-                <Text style={[styles.stakeholderEmail, { color: s.color }]}>{s.email}</Text>
-              </View>
-              <View style={[styles.categoryBadge, { backgroundColor: s.color + "15" }]}>
-                <Text style={[styles.categoryText, { color: s.color }]}>{s.category}</Text>
-              </View>
-            </Pressable>
-          ))}
-
-          <View style={[styles.placeholderNote, { backgroundColor: "#1E293B40" }]}>
-            <Feather name="info" size={12} color="#475569" />
-            <Text style={[styles.placeholderText, { color: "#475569" }]}>
-              Stakeholder contact details are placeholders. Replace with your local representatives' actual contacts.
+          <View style={styles.stakeholderGrid}>
+            {STAKEHOLDERS.map((s) => (
+              <Pressable
+                key={s.id}
+                onPress={() => handleEmail(s)}
+                style={styles.stakeholderCell}
+              >
+                <WobbleBox
+                  width={170}
+                  height={70}
+                  fill="white"
+                  seed={s.seed}
+                  padding={0}
+                >
+                  <View style={styles.stakeholderInner}>
+                    <View
+                      style={[
+                        styles.stakeholderEmojiWrap,
+                        { backgroundColor: s.color },
+                      ]}
+                    >
+                      <Text style={styles.stakeholderEmoji}>{s.emoji}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.stakeholderName} numberOfLines={1}>
+                        {s.name}
+                      </Text>
+                      <Text style={styles.stakeholderRole} numberOfLines={1}>
+                        {s.category}
+                      </Text>
+                    </View>
+                  </View>
+                </WobbleBox>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.placeholderNote}>
+            <Mushroom size={28} />
+            <Text style={styles.placeholderText}>
+              Stakeholder contacts are placeholders — replace with your local
+              representatives.
             </Text>
           </View>
         </View>
@@ -373,184 +502,277 @@ export default function ReportsScreen() {
   );
 }
 
+function PostcardStat({
+  n,
+  l,
+  c,
+  seed,
+}: {
+  n: string;
+  l: string;
+  c: string;
+  seed: number;
+}) {
+  return (
+    <View style={{ flex: 1 }}>
+      <WobbleBox width={96} height={60} fill="white" seed={seed} padding={0}>
+        <View style={styles.statInner}>
+          <Text style={[styles.statNumber, { color: c }]} numberOfLines={1}>
+            {n}
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={1}>
+            {l}
+          </Text>
+        </View>
+      </WobbleBox>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: { paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: PAINT.paper },
+  scroll: { paddingHorizontal: 16 },
   title: {
-    fontSize: 26,
-    fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
-    letterSpacing: -0.4,
+    fontFamily: HAND_FONT,
+    fontSize: 32,
+    color: PAINT.ink,
+    transform: [{ rotate: "-1deg" }],
+    lineHeight: 36,
   },
   subtitle: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    marginTop: 2,
-    marginBottom: 20,
-    lineHeight: 18,
+    fontFamily: LABEL_FONT,
+    fontSize: 15,
+    color: PAINT.inkSoft,
+    marginTop: 6,
   },
-  typeSelector: {
+  typeRow: {
     flexDirection: "row",
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 4,
-    marginBottom: 16,
-    gap: 4,
+    gap: 12,
+    marginTop: 18,
   },
-  typeTab: {
+  typeInner: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  typeText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  featuredCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 16,
-    gap: 4,
-  },
-  featuredHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginBottom: 4,
-  },
-  featuredLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_700Bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  featuredName: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
-  },
-  featuredSci: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    fontStyle: "italic",
-  },
-  featuredObs: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-    marginTop: 2,
-  },
-  generateBtn: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    paddingVertical: 16,
-    borderRadius: 16,
-    marginBottom: 20,
   },
-  generateText: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
+  typeText: {
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    color: PAINT.ink,
   },
-  reportSection: { marginBottom: 24 },
+  postcardWrap: {
+    marginTop: 24,
+    alignItems: "center",
+  },
+  postcard: {
+    width: 340,
+    backgroundColor: "white",
+    borderWidth: 3,
+    borderColor: PAINT.ink,
+    padding: 16,
+    transform: [{ rotate: "-1.5deg" }],
+  },
+  tape: {
+    position: "absolute",
+    top: -10,
+    width: 60,
+    height: 22,
+    borderWidth: 1.5,
+    borderColor: PAINT.ink,
+    zIndex: 2,
+  },
+  tapeLeft: {
+    left: 36,
+    backgroundColor: PAINT.sun + "cc",
+    transform: [{ rotate: "-9deg" }],
+  },
+  tapeRight: {
+    right: 36,
+    backgroundColor: PAINT.pink + "cc",
+    transform: [{ rotate: "8deg" }],
+  },
+  postcardKicker: {
+    fontFamily: HAND_FONT,
+    fontSize: 14,
+    color: PAINT.inkMute,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  postcardTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 26,
+    color: PAINT.ink,
+    marginTop: 4,
+    lineHeight: 28,
+  },
+  postcardMeta: {
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.inkSoft,
+    marginTop: 4,
+  },
+  hero: {
+    marginTop: 12,
+    height: 130,
+    borderWidth: 2.5,
+    borderColor: PAINT.ink,
+    backgroundColor: PAINT.sun,
+    overflow: "hidden",
+  },
+  heroFallback: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    backgroundColor: PAINT.sun,
+  },
+  statRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  statInner: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statNumber: {
+    fontFamily: HAND_FONT,
+    fontSize: 20,
+    lineHeight: 22,
+  },
+  statLabel: {
+    fontFamily: LABEL_FONT,
+    fontSize: 10,
+    color: PAINT.inkSoft,
+    marginTop: 2,
+  },
+  finding: {
+    marginTop: 14,
+    padding: 10,
+    backgroundColor: PAINT.cream,
+    borderWidth: 2,
+    borderColor: PAINT.ink,
+  },
+  findingTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 18,
+    color: PAINT.ink,
+  },
+  findingBody: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.ink,
+    marginTop: 4,
+    lineHeight: 19,
+  },
+  findingItalic: { fontStyle: "italic", color: PAINT.inkSoft },
+  highlight: {
+    backgroundColor: PAINT.sun,
+    color: PAINT.ink,
+  },
+  signoff: {
+    marginTop: 12,
+    fontFamily: HAND_FONT,
+    fontSize: 14,
+    color: PAINT.inkMute,
+    textAlign: "right",
+  },
+  reportSection: { marginTop: 22, alignItems: "center" },
   reportHeader: {
+    width: 358,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   reportLabel: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    color: PAINT.ink,
   },
-  copyBtn: {
+  copyInner: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
   },
   copyText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-  },
-  reportBox: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
+    fontFamily: HAND_FONT,
+    fontSize: 16,
+    color: PAINT.ink,
   },
   reportText: {
+    fontFamily: LABEL_FONT,
     fontSize: 12,
-    fontFamily: "Inter_400Regular",
+    color: PAINT.ink,
     lineHeight: 18,
   },
-  outreachSection: { marginBottom: 20 },
-  outreachTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
-    marginBottom: 4,
+  sendTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 24,
+    color: PAINT.ink,
+    transform: [{ rotate: "-0.5deg" }],
   },
-  outreachSubtitle: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 17,
-    marginBottom: 14,
+  sendSub: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkSoft,
+    marginTop: 4,
+    lineHeight: 18,
   },
-  stakeholderCard: {
+  stakeholderGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 12,
+    justifyContent: "space-between",
+  },
+  stakeholderCell: {},
+  stakeholderInner: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 8,
-    gap: 12,
+    paddingHorizontal: 10,
+    gap: 10,
   },
-  stakeholderIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+  stakeholderEmojiWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: PAINT.ink,
     alignItems: "center",
     justifyContent: "center",
   },
-  stakeholderInfo: { flex: 1, gap: 2 },
+  stakeholderEmoji: { fontSize: 20 },
   stakeholderName: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: "#FFFFFF",
+    fontFamily: HAND_FONT,
+    fontSize: 18,
+    color: PAINT.ink,
+    lineHeight: 20,
   },
   stakeholderRole: {
+    fontFamily: LABEL_FONT,
     fontSize: 11,
-    fontFamily: "Inter_400Regular",
-  },
-  stakeholderEmail: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-  },
-  categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontFamily: "Inter_600SemiBold",
+    color: PAINT.inkSoft,
   },
   placeholderNote: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
+    alignItems: "center",
+    gap: 10,
+    marginTop: 16,
     padding: 12,
-    borderRadius: 12,
-    marginTop: 4,
+    backgroundColor: PAINT.cream,
+    borderWidth: 2,
+    borderColor: PAINT.ink,
+    borderStyle: "dashed",
   },
   placeholderText: {
     flex: 1,
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 16,
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.inkSoft,
+    lineHeight: 17,
   },
 });

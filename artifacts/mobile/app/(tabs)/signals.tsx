@@ -1,5 +1,5 @@
-import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import React, { useMemo } from "react";
 import {
   Platform,
@@ -9,18 +9,63 @@ import {
   Text,
   View,
 } from "react-native";
+import Svg, { Path, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { SignalCard, type Signal, type SignalType } from "@/components/SignalCard";
-import { RiveEmptyState } from "@/components/RiveEmptyState";
-import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
+
+import {
+  Bee,
+  Bird,
+  CrayonUnderline,
+  Flower,
+  Frog,
+  HAND_FONT,
+  LABEL_FONT,
+  Mushroom,
+  PaperBackground,
+  PAINT,
+  wobble,
+  WobbleBox,
+} from "@/components/paint";
 import { useLocation } from "@/context/LocationContext";
 import {
-  fetchNearbySpecies,
   fetchHistoricalSpecies,
+  fetchNearbySpecies,
+  getIconicGroup,
   type SpeciesCount,
 } from "@/services/iNaturalist";
 import { withCache } from "@/services/cache";
-import { useColors } from "@/hooks/useColors";
+
+type SignalType = "declining" | "new" | "increasing";
+
+type Signal = {
+  id: string;
+  type: SignalType;
+  speciesName: string;
+  scientificName: string;
+  iconicGroup: string;
+  photoUrl?: string;
+  msg: string;
+  stat: string;
+  chart: number[];
+  observationCount: number;
+};
+
+function makeChart(seed: number, type: SignalType): number[] {
+  const rand = (i: number) => {
+    const x = Math.sin(seed * 9.7 + i * 3.1) * 10000;
+    return x - Math.floor(x);
+  };
+  const out: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    const t = i / 11;
+    let base = 50;
+    if (type === "declining") base = 80 - t * 60 + (rand(i) - 0.5) * 14;
+    else if (type === "increasing") base = 20 + t * 80 + (rand(i) - 0.5) * 12;
+    else base = 10 + Math.pow(t, 1.6) * 70 + (rand(i) - 0.5) * 12;
+    out.push(Math.max(6, base));
+  }
+  return out;
+}
 
 function generateSignals(
   current: SpeciesCount[],
@@ -35,61 +80,62 @@ function generateSignals(
   const totalCurrent = current.reduce((s, i) => s + i.count, 0) || 1;
   const totalHistorical = historical.reduce((s, i) => s + i.count, 0) || 1;
 
-  // Find species not seen historically but now present
-  current.slice(0, 20).forEach((s) => {
+  current.slice(0, 20).forEach((s, idx) => {
     if (!historicalMap.has(s.taxon.id) && s.count >= 3) {
       signals.push({
         id: `new-${s.taxon.id}`,
-        type: "new" as SignalType,
+        type: "new",
         speciesName: s.taxon.preferred_common_name || s.taxon.name,
         scientificName: s.taxon.name,
+        iconicGroup: getIconicGroup(s.taxon.iconic_taxon_name),
         photoUrl: s.taxon.default_photo?.square_url,
-        description: `Possible signal from community observations. ${s.taxon.preferred_common_name || s.taxon.name} has ${s.count} recent observations nearby but was not recorded in earlier years.`,
-        dataNote: "Based on iNaturalist research-grade observations. New detections may reflect expanded observer activity, not just species range changes.",
+        msg: "appearing for the first time in your area",
+        stat: `+${s.count}`,
+        chart: makeChart(s.taxon.id + idx, "new"),
         observationCount: s.count,
       });
     }
   });
 
-  // Find significant declines
-  historical.slice(0, 30).forEach((s) => {
+  historical.slice(0, 30).forEach((s, idx) => {
     const histCount = s.count;
     const currCount = currentMap.get(s.taxon.id) || 0;
     const histFreq = histCount / totalHistorical;
     const currFreq = currCount / totalCurrent;
-
     if (histFreq > 0 && currFreq < histFreq * 0.4 && histCount >= 5) {
+      const pct = Math.round((1 - currFreq / histFreq) * 100);
       signals.push({
         id: `decline-${s.taxon.id}`,
-        type: "declining" as SignalType,
+        type: "declining",
         speciesName: s.taxon.preferred_common_name || s.taxon.name,
         scientificName: s.taxon.name,
+        iconicGroup: getIconicGroup(s.taxon.iconic_taxon_name),
         photoUrl: s.taxon.default_photo?.square_url,
-        description: `Possible signal from community observations. Observation frequency of ${s.taxon.preferred_common_name || s.taxon.name} appears lower compared to previous years when normalized for total observation effort.`,
-        dataNote: "Frequency decline may reflect habitat change, observer behavior shifts, or population changes. This is not a scientific assessment.",
+        msg: "quieter compared to past 3 years",
+        stat: `-${pct}%`,
+        chart: makeChart(s.taxon.id + idx + 100, "declining"),
         observationCount: currCount,
-        previousCount: histCount,
       });
     }
   });
 
-  // Find species increasing strongly
-  current.slice(0, 30).forEach((s) => {
+  current.slice(0, 30).forEach((s, idx) => {
     const histCount = historicalMap.get(s.taxon.id) || 0;
     const histFreq = histCount / totalHistorical;
     const currFreq = s.count / totalCurrent;
-
     if (histCount >= 2 && currFreq > histFreq * 2.5 && s.count >= 10) {
+      const pct = Math.round((currFreq / histFreq - 1) * 100);
       signals.push({
         id: `increasing-${s.taxon.id}`,
-        type: "increasing" as SignalType,
+        type: "increasing",
         speciesName: s.taxon.preferred_common_name || s.taxon.name,
         scientificName: s.taxon.name,
+        iconicGroup: getIconicGroup(s.taxon.iconic_taxon_name),
         photoUrl: s.taxon.default_photo?.square_url,
-        description: `Possible signal from community observations. ${s.taxon.preferred_common_name || s.taxon.name} shows notably higher normalized observation frequency compared to previous years.`,
-        dataNote: "Increases may reflect more observers, range expansion, or population growth. Community science data alone cannot confirm trends.",
+        msg: `${(currFreq / histFreq).toFixed(1)}x more sightings this season`,
+        stat: `+${pct}%`,
+        chart: makeChart(s.taxon.id + idx + 200, "increasing"),
         observationCount: s.count,
-        previousCount: histCount,
       });
     }
   });
@@ -97,12 +143,24 @@ function generateSignals(
   return signals.slice(0, 12);
 }
 
+const GROUP_FALLBACK: Record<string, React.ComponentType<{ size?: number }>> = {
+  Birds: Bird,
+  Insects: Bee,
+  Plants: Flower,
+  Amphibians: Frog,
+  Fungi: Mushroom,
+};
+
 export default function SignalsScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { lat, lng, radius } = useLocation();
 
-  const { data: current, isLoading: l1, refetch: r1, isRefetching: rf1 } = useQuery({
+  const {
+    data: current,
+    isLoading: l1,
+    refetch: r1,
+    isRefetching: rf1,
+  } = useQuery({
     queryKey: ["nearby-species", lat, lng, radius],
     queryFn: () =>
       withCache(`nearby-${lat}-${lng}-${radius}`, () =>
@@ -111,7 +169,12 @@ export default function SignalsScreen() {
     enabled: !!lat && !!lng,
   });
 
-  const { data: historical, isLoading: l2, refetch: r2, isRefetching: rf2 } = useQuery({
+  const {
+    data: historical,
+    isLoading: l2,
+    refetch: r2,
+    isRefetching: rf2,
+  } = useQuery({
     queryKey: ["historical-species", lat, lng, radius],
     queryFn: () =>
       withCache(`historical-${lat}-${lng}-${radius}`, () =>
@@ -136,78 +199,85 @@ export default function SignalsScreen() {
   const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.earthDark }]}>
+    <View style={styles.container}>
+      <PaperBackground />
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
           {
-            paddingTop: topInsets + 16,
-            paddingBottom: bottomInsets + 100,
+            paddingTop: topInsets + 18,
+            paddingBottom: bottomInsets + 110,
           },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() => { r1(); r2(); }}
-            tintColor="#22D3EE"
+            onRefresh={() => {
+              r1();
+              r2();
+            }}
+            tintColor={PAINT.blue}
           />
         }
       >
-        <Text style={styles.title}>Biodiversity Signals</Text>
+        <Text style={styles.title}>Signals</Text>
+        <CrayonUnderline width={130} color={PAINT.blue} seed={3} />
         <Text style={styles.subtitle}>
-          Patterns from community observations — possible signals, not scientific findings.
+          What&apos;s shifting in your neck of the woods.
         </Text>
 
-        {/* Caveat banner */}
-        <View style={[styles.caveatBanner, { backgroundColor: "#22D3EE10", borderColor: "#22D3EE30" }]}>
-          <Feather name="info" size={15} color="#22D3EE" />
-          <Text style={[styles.caveatText, { color: "#94A3B8" }]}>
-            All signals below are derived from iNaturalist community data. Observer effort, location biases, and seasonal variation all affect these patterns. These are not scientific assessments.
-          </Text>
-        </View>
-
         {isLoading ? (
-          <View style={styles.skeletons}>
-            <RiveLoadingShimmer hero width={140} height={140} />
-            <Text style={[styles.caveatText, { color: "#64748B", textAlign: "center" }]}>
-              Comparing recent observations against historical baselines…
+          <View style={styles.loading}>
+            <Bee size={64} />
+            <Text style={styles.loadingText}>
+              comparing recent sightings to past years…
             </Text>
           </View>
         ) : signals.length === 0 ? (
-          <View style={[styles.empty, { backgroundColor: "#0F1824" }]}>
-            <RiveEmptyState
-              icon="activity"
-              title="No signals detected"
-              description="Not enough historical data to compare. Try a larger radius or check back after more community observations accumulate."
-            />
+          <View style={styles.empty}>
+            <Frog size={72} />
+            <Text style={styles.emptyTitle}>no signals yet</Text>
+            <Text style={styles.emptyDesc}>
+              not enough historical data to compare. try a wider radius or
+              check back when more sightings roll in.
+            </Text>
           </View>
         ) : (
           <>
             {declines.length > 0 && (
               <Section
-                title="Possible Declines"
-                icon="trending-down"
-                color="#EF4444"
+                title="going quiet"
+                emoji="↘"
+                color={PAINT.red}
                 signals={declines}
               />
             )}
             {newObs.length > 0 && (
               <Section
-                title="Newly Observed Species"
-                icon="plus-circle"
-                color="#4ADE80"
+                title="new arrivals"
+                emoji="✨"
+                color={PAINT.grassDeep}
                 signals={newObs}
               />
             )}
             {increases.length > 0 && (
               <Section
-                title="Increasing Activity"
-                icon="trending-up"
-                color="#22D3EE"
+                title="more & more"
+                emoji="📈"
+                color={PAINT.blue}
                 signals={increases}
               />
             )}
+
+            {/* friendly caveat note */}
+            <View style={styles.caveat}>
+              <Text style={styles.caveatText}>
+                🐾 These are friendly hints from community sightings, not
+                scientific facts. Maybe more people are looking, or maybe
+                nature is shifting!
+              </Text>
+            </View>
           </>
         )}
       </ScrollView>
@@ -217,96 +287,209 @@ export default function SignalsScreen() {
 
 function Section({
   title,
-  icon,
+  emoji,
   color,
   signals,
 }: {
   title: string;
-  icon: string;
+  emoji: string;
   color: string;
   signals: Signal[];
 }) {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Feather name={icon as any} size={16} color={color} />
-        <Text style={[styles.sectionTitle, { color: "#FFFFFF" }]}>{title}</Text>
+        <Text style={[styles.sectionEmoji, { color }]}>{emoji}</Text>
+        <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
       </View>
-      {signals.map((s) => (
-        <SignalCard key={s.id} signal={s} />
-      ))}
+      <View style={{ gap: 10, marginTop: 6 }}>
+        {signals.map((s, i) => (
+          <SignalCard key={s.id} signal={s} seed={i * 5 + 1} color={color} />
+        ))}
+      </View>
     </View>
   );
 }
 
+function SignalCard({
+  signal,
+  seed,
+  color,
+}: {
+  signal: Signal;
+  seed: number;
+  color: string;
+}) {
+  const max = Math.max(...signal.chart);
+  const Icon = GROUP_FALLBACK[signal.iconicGroup] ?? Flower;
+  return (
+    <WobbleBox width={358} height={120} fill="white" seed={seed} padding={12}>
+      <View style={styles.cardRow}>
+        {signal.photoUrl ? (
+          <Image
+            source={{ uri: signal.photoUrl }}
+            style={styles.cardPhoto}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={[styles.cardPhoto, styles.cardPhotoFallback]}>
+            <Icon size={48} />
+          </View>
+        )}
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={styles.cardName} numberOfLines={1}>
+            {signal.speciesName}
+          </Text>
+          <Text style={styles.cardMsg} numberOfLines={2}>
+            {signal.msg}
+          </Text>
+          <View style={{ marginTop: 4 }}>
+            <Svg width={170} height={28} viewBox="0 0 170 28">
+              {signal.chart.map((v, i) => {
+                const x = 4 + i * 13;
+                const h = (v / max) * 22;
+                return (
+                  <Rect
+                    key={i}
+                    x={x}
+                    y={26 - h}
+                    width={9}
+                    height={h}
+                    fill={color}
+                    fillOpacity={0.55}
+                    stroke={color}
+                    strokeWidth={0.8}
+                  />
+                );
+              })}
+              <Path
+                d={wobble(4, 27, 162, 27, 0.4, 8, seed + 10)}
+                stroke={PAINT.ink}
+                strokeWidth={0.8}
+                fill="none"
+              />
+            </Svg>
+          </View>
+        </View>
+        <View style={styles.statBox}>
+          <Text style={[styles.statText, { color }]}>{signal.stat}</Text>
+        </View>
+      </View>
+    </WobbleBox>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: { paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: PAINT.paper },
+  scroll: { paddingHorizontal: 16 },
   title: {
-    fontSize: 26,
-    fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
-    letterSpacing: -0.4,
+    fontFamily: HAND_FONT,
+    fontSize: 34,
+    color: PAINT.ink,
+    transform: [{ rotate: "-1deg" }],
+    lineHeight: 38,
   },
   subtitle: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: "#64748B",
-    marginTop: 2,
-    marginBottom: 12,
-    lineHeight: 18,
+    fontFamily: LABEL_FONT,
+    fontSize: 15,
+    color: PAINT.inkSoft,
+    marginTop: 6,
+    lineHeight: 20,
   },
-  caveatBanner: {
-    flexDirection: "row",
-    gap: 10,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 20,
-    alignItems: "flex-start",
-  },
-  caveatText: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 18,
-  },
-  section: { marginBottom: 24 },
+  section: { marginTop: 22 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 10,
   },
+  sectionEmoji: { fontSize: 22 },
   sectionTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
+    fontFamily: HAND_FONT,
+    fontSize: 24,
+    transform: [{ rotate: "-0.5deg" }],
   },
-  skeletons: { gap: 10 },
-  skeletonCard: {
+  cardRow: {
+    flex: 1,
     flexDirection: "row",
-    padding: 14,
-    borderRadius: 16,
-    gap: 12,
     alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  cardPhoto: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: PAINT.ink,
+    backgroundColor: PAINT.cream,
+  },
+  cardPhotoFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardName: {
+    fontFamily: HAND_FONT,
+    fontSize: 20,
+    color: PAINT.ink,
+    lineHeight: 22,
+  },
+  cardMsg: {
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.inkSoft,
+    lineHeight: 16,
+  },
+  statBox: { alignItems: "center", justifyContent: "center", minWidth: 60 },
+  statText: {
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    lineHeight: 24,
+    textAlign: "center",
+  },
+  loading: {
+    marginTop: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  loadingText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 14,
+    color: PAINT.inkSoft,
+    textAlign: "center",
+    paddingHorizontal: 20,
   },
   empty: {
-    borderRadius: 16,
-    padding: 32,
+    marginTop: 40,
     alignItems: "center",
+    padding: 24,
     gap: 10,
-    marginTop: 12,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    color: "#475569",
+    fontFamily: HAND_FONT,
+    fontSize: 26,
+    color: PAINT.ink,
+    marginTop: 8,
   },
   emptyDesc: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: "#334155",
+    fontFamily: LABEL_FONT,
+    fontSize: 14,
+    color: PAINT.inkSoft,
     textAlign: "center",
+  },
+  caveat: {
+    marginTop: 22,
+    padding: 14,
+    backgroundColor: PAINT.pink + "33",
+    borderWidth: 2,
+    borderColor: PAINT.pink,
+    borderStyle: "dashed",
+    borderRadius: 4,
+  },
+  caveatText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.ink,
     lineHeight: 19,
   },
 });
