@@ -1,0 +1,20 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "z5XVhDRrAJQFnbygCqzj0"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "life web app icon"
+
+[[generated]]
+id = "TwjkCMifwSna8deW4BCYe"
+uri = "file://artifacts/mobile/assets/images/splash.png"
+type = "image"
+title = "life web splash screen"
+
+[[generated]]
+id = "OMhYICnswSWCgD5AyVdqy"
+uri = "file://artifacts/mobile/assets/images/forest-bg.png"
+type = "image"
+title = "forest background"

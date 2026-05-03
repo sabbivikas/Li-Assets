@@ -1,0 +1,168 @@
+Build a polished React Native Expo mobile app called “Life Web”.
+
+Goal:
+A consumer-friendly biodiversity impact app powered by the iNaturalist API. The app should help everyday users understand what species live near them, which ones may be declining or vulnerable, and what could happen locally if an important species disappears.
+
+Use iNaturalist deeply, not as a basic wrapper.
+
+Core iNaturalist API usage:
+- Use /observations to fetch nearby observations by user location, radius, date range, taxon, and quality grade.
+- Use /observations/species_counts to get the most observed species near the user.
+- Use /observations/histogram to compare observation activity over time.
+- Use /taxa to get species metadata, photos, taxonomy, common name, scientific name, iconic taxon, conservation status if available.
+- Use /places or place search/autocomplete so users can search a city, park, county, or region.
+- Use /projects to surface local conservation or biodiversity projects when relevant.
+- Prefer research-grade observations when showing serious trends.
+- Respect iNaturalist geoprivacy and never expose precise sensitive species locations.
+
+Main app flow:
+1. Onboarding
+- Ask for location permission.
+- Explain: “See what’s living around you and what happens if it disappears.”
+- Let user choose radius: 5km, 10km, 25km, 50km.
+
+2. Earth Home Screen
+- Beautiful animated Earth/globe-inspired screen.
+- Show user location as a glowing point.
+- Show “Your local life web” with quick stats:
+  - species observed nearby
+  - threatened/vulnerable species found if available
+  - most observed group: birds/plants/insects/fungi/mammals
+  - recent biodiversity activity
+
+3. Local Species Screen
+- Fetch and display species near the user from iNaturalist.
+- Group by Birds, Plants, Insects, Mammals, Amphibians, Fungi.
+- Each species card should include:
+  - photo
+  - common name
+  - scientific name
+  - observation count nearby
+  - last seen date
+  - conservation status if available
+  - role in ecosystem: pollinator, prey, predator, seed spreader, plant, decomposer, indicator species
+
+4. Species Detail Screen
+- Show species image, description-style summary, nearby observation stats, and timeline.
+- Show:
+  - first observed nearby
+  - last observed nearby
+  - yearly observation trend
+  - seasonal activity months
+  - map preview with generalized points
+- Add “What happens if this disappears?” button.
+
+5. Extinction Impact Simulation
+- When a user taps “What happens if this disappears?”, show a beautiful animated chain reaction.
+- Use a simplified ecological dependency model:
+  - pollinator loss -> less plant reproduction -> less fruit/seeds -> less food for birds/mammals
+  - predator loss -> prey imbalance -> vegetation pressure
+  - amphibian loss -> insect imbalance -> water quality signal concern
+  - plant loss -> habitat/food loss -> insect and bird decline
+  - decomposer loss -> slower nutrient cycling -> soil health decline
+- Visual style:
+  - glowing nodes
+  - animated arrows
+  - Earth/location background
+  - simple icons and plain language
+- Keep the wording consumer-friendly:
+  - “This species helps keep local plants reproducing.”
+  - “If it disappears, other species may lose food or habitat.”
+- Add a small credibility note:
+  “This is a simplified ecological model based on species roles and local observation data, not a prediction.”
+
+6. Climate & Biodiversity Signals
+- Create a “Signals” tab showing:
+  - species appearing recently
+  - species not seen recently compared with past years
+  - earlier/later seasonal appearance
+  - possible invasive/non-native increases where available
+  - changes in observation-normalized frequency
+- Avoid claiming proof of climate change.
+- Use wording like:
+  “Possible signal from community observations.”
+
+7. Civic Report Generator
+- Let user generate a local report for a species or area.
+- Report should include:
+  - location
+  - species affected
+  - what changed
+  - why it matters
+  - iNaturalist data summary
+  - ecological impact chain
+  - recommended local action
+  - caveats about community science data
+- Create both:
+  - consumer summary
+  - policy-style report
+
+8. Outreach Screen
+- Add a feature called “Send to Local Leaders”.
+- Do not auto-send emails.
+- Let user copy or open mailto manually.
+- Include editable templates for:
+  - city council
+  - parks department
+  - local newspaper
+  - environmental nonprofit
+- Use placeholder stakeholder data for now.
+- Structure recipient fields:
+  name, role, organization, city/state, email, website, category.
+
+9. Shareable Graphics
+- Generate social cards:
+  - “If [species] disappears in [location], this happens…”
+  - “Your local life web depends on [species].”
+  - “Nature around [city] is changing.”
+- Make cards visually beautiful with Earth, species photo, chain reaction icons, and location.
+
+Backend:
+- Build a Node/Express API layer to call iNaturalist.
+- Cache iNaturalist responses to avoid repeated calls.
+- Create endpoints:
+  GET /api/nearby-species
+  GET /api/species/:id
+  GET /api/species/:id/timeline
+  GET /api/location-signals
+  POST /api/generate-report
+- Store cached species, observations summary, reports, and user saved locations in SQLite or PostgreSQL.
+- Add error handling and loading states.
+
+Data rules:
+- Normalize trends by comparing species observation counts against total observations in the same area/time window.
+- Compare same months across years to reduce seasonality bias.
+- Prefer research-grade data for reports.
+- Do not show precise locations for sensitive/threatened species.
+- Always show caveats when using community observation data.
+
+Design:
+- Premium environmental UI.
+- Dark space/Earth theme mixed with clean white report screens.
+- Smooth animations.
+- Big visuals, minimal text.
+- Consumer-friendly language.
+- Make it feel like “Google Earth meets climate action.”
+
+Monetization-ready structure:
+- Free:
+  - local species view
+  - 3 impact simulations per day
+  - 1 report per month
+- Premium:
+  - unlimited simulations
+  - unlimited reports
+  - saved locations
+  - advanced signals
+  - export PDF
+- Organization:
+  - multiple monitored regions
+  - scheduled reports
+  - stakeholder lists
+  - policy report exports
+
+Important:
+- No paid APIs.
+- Use iNaturalist public API.
+- Make the MVP work with mock stakeholder data if real contacts are not available.
+- Prioritize useful impact, credibility, and beautiful visual storytelling.
