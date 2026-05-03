@@ -1,9 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { useRef } from "react";
+import React, { useState } from "react";
 import {
-  Animated,
+  ActivityIndicator,
   Platform,
   Pressable,
   RefreshControl,
@@ -14,37 +14,44 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EarthGlobe } from "@/components/EarthGlobe";
+import { LocationMap } from "@/components/LocationMap";
 import { StatCard } from "@/components/StatCard";
 import { SpeciesCard } from "@/components/SpeciesCard";
 import { LoadingShimmer, SpeciesCardSkeleton } from "@/components/LoadingShimmer";
 import { useLocation } from "@/context/LocationContext";
-import { fetchNearbySpecies, getIconicGroup } from "@/services/iNaturalist";
+import {
+  fetchNearbySpecies,
+  fetchRecentObservations,
+  getIconicGroup,
+} from "@/services/iNaturalist";
 import { withCache } from "@/services/cache";
 import { useColors } from "@/hooks/useColors";
+
+const GROUP_COLORS: Record<string, string> = {
+  Birds: "#22D3EE",
+  Plants: "#4ADE80",
+  Insects: "#FBBF24",
+  Mammals: "#F472B6",
+  Amphibians: "#60A5FA",
+  Reptiles: "#A78BFA",
+  Fungi: "#FB923C",
+  Fish: "#38BDF8",
+  Other: "#94A3B8",
+};
 
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { lat, lng, radius, cityName } = useLocation();
+  const { lat, lng, radius, cityName, permissionGranted, requestLocation } =
+    useLocation();
+  const [requestingLoc, setRequestingLoc] = useState(false);
 
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  React.useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 2500, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 0.5, duration: 2500, useNativeDriver: true }),
-      ])
-    ).start();
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1500, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+  async function handleUseMyLocation() {
+    setRequestingLoc(true);
+    await requestLocation();
+    setRequestingLoc(false);
+  }
 
   const cacheKey = `nearby-${lat}-${lng}-${radius}`;
   const {
@@ -58,6 +65,38 @@ export default function HomeScreen() {
       withCache(cacheKey, () => fetchNearbySpecies(lat!, lng!, radius, 50)),
     enabled: !!lat && !!lng,
   });
+
+  // Real recent observations (with coords) — only fetched when location is granted
+  const { data: observations } = useQuery({
+    queryKey: ["recent-observations", lat, lng, radius],
+    queryFn: () =>
+      withCache(`obs-${lat}-${lng}-${radius}`, () =>
+        fetchRecentObservations(lat!, lng!, radius),
+      ),
+    enabled: permissionGranted && !!lat && !!lng,
+  });
+
+  const mapPins = React.useMemo(() => {
+    if (!observations) return [];
+    return observations
+      .map((o) => {
+        if (!o.location) return null;
+        const [obsLat, obsLng] = o.location.split(",").map(Number);
+        if (!isFinite(obsLat) || !isFinite(obsLng)) return null;
+        const group = getIconicGroup(o.taxon?.iconic_taxon_name);
+        return {
+          id: o.id,
+          name:
+            o.taxon?.preferred_common_name ||
+            o.taxon?.name ||
+            "Observation",
+          lat: obsLat,
+          lng: obsLng,
+          color: GROUP_COLORS[group] || GROUP_COLORS.Other,
+        };
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null);
+  }, [observations]);
 
   const topSpecies = species?.slice(0, 3) || [];
 
@@ -80,11 +119,8 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.earthDark }]}>
-      {/* Animated glow background */}
-      <Animated.View
-        style={[styles.bgGlow, { opacity: glowAnim }]}
-        pointerEvents="none"
-      />
+      {/* Soft background glow */}
+      <View style={styles.bgGlow} pointerEvents="none" />
 
       <ScrollView
         contentContainerStyle={[
@@ -118,10 +154,47 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Earth Globe */}
-        <View style={styles.globeSection}>
-          <EarthGlobe size={260} pinLat={lat} pinLng={lng} />
-        </View>
+        {/* Hero visual: real map when location is granted, animated Earth otherwise */}
+        {permissionGranted && lat && lng ? (
+          <View style={styles.mapSection}>
+            <LocationMap
+              lat={lat}
+              lng={lng}
+              radiusKm={radius}
+              pins={mapPins}
+              height={300}
+            />
+            {mapPins.length > 0 && (
+              <View style={styles.mapLegend}>
+                <Feather name="map-pin" size={11} color="#4ADE80" />
+                <Text style={styles.mapLegendText}>
+                  {mapPins.length} recent observations · last 30 days
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <View style={styles.globeSection}>
+            <EarthGlobe size={260} pinLat={lat} pinLng={lng} />
+            <Pressable
+              onPress={handleUseMyLocation}
+              disabled={requestingLoc}
+              style={({ pressed }) => [
+                styles.locateBtn,
+                { opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              {requestingLoc ? (
+                <ActivityIndicator size="small" color="#080C14" />
+              ) : (
+                <Feather name="navigation" size={15} color="#080C14" />
+              )}
+              <Text style={styles.locateBtnText}>
+                {requestingLoc ? "Finding you…" : "Use my location"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Hero status banner */}
         <View style={styles.heroBanner}>
@@ -293,7 +366,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
-    height: 280,
+    height: 320,
+  },
+  locateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#4ADE80",
+    marginTop: 8,
+  },
+  locateBtnText: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "#080C14",
+  },
+  mapSection: {
+    marginBottom: 14,
+    gap: 8,
+  },
+  mapLegend: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#0F1824",
+    borderWidth: 1,
+    borderColor: "#1E293B",
+  },
+  mapLegendText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: "#94A3B8",
   },
   heroBanner: {
     flexDirection: "row",
