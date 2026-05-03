@@ -43,6 +43,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocation } from "@/context/LocationContext";
 import { LocationMap } from "@/components/LocationMap";
 import { RiveAnimation, riveAssets } from "@/components/RiveAnimation";
+import { Earth as PaintEarth } from "@/components/paint/Critters";
+import { PAINT } from "@/components/paint/theme";
 import { fetchNearbySpecies } from "@/services/iNaturalist";
 import { useQuery } from "@tanstack/react-query";
 
@@ -173,12 +175,48 @@ function OnboardingScreen({
 }
 
 function AnimatedEarth({ size = 240 }: { size?: number }) {
+  const float = useSharedValue(0);
+  const halo = useSharedValue(0);
+
+  useEffect(() => {
+    float.value = withRepeat(
+      withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true,
+    );
+    halo.value = withRepeat(
+      withTiming(1, { duration: 2800, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true,
+    );
+  }, [float, halo]);
+
+  const earthStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: interpolate(float.value, [0, 1], [-6, 6]) }],
+  }));
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(halo.value, [0, 1], [0.35, 0.7]),
+    transform: [{ scale: interpolate(halo.value, [0, 1], [0.96, 1.06]) }],
+  }));
+
   return (
-    <RiveAnimation
-      source={riveAssets.hero}
-      style={{ width: size, height: size }}
-      fallback={<AnimatedEarthFallback size={size} />}
-    />
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Animated.View
+        style={[
+          {
+            position: "absolute",
+            width: size * 1.15,
+            height: size * 1.15,
+            borderRadius: size * 0.575,
+            backgroundColor: `${PAINT.sun}33`,
+          },
+          haloStyle,
+        ]}
+      />
+      <Animated.View style={earthStyle}>
+        <PaintEarth size={size} />
+      </Animated.View>
+    </View>
   );
 }
 

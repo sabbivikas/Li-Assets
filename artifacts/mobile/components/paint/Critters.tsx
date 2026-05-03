@@ -139,10 +139,57 @@ export function Cloud({
   );
 }
 
+function sparklePath(s: number) {
+  return `M 0 ${-s} L ${s * 0.3} ${-s * 0.3} L ${s} 0 L ${s * 0.3} ${s * 0.3} L 0 ${s} L ${-s * 0.3} ${s * 0.3} L ${-s} 0 L ${-s * 0.3} ${-s * 0.3} Z`;
+}
+
 export function Earth({ size = 200 }: { size?: number }) {
+  // Halo: dotted ring around the planet (sun color)
+  const haloDots = Array.from({ length: 36 }).map((_, i) => {
+    const a = (i / 36) * Math.PI * 2;
+    return {
+      cx: 100 + Math.cos(a) * 95,
+      cy: 100 + Math.sin(a) * 95,
+      r: 1.4 + ((i % 3) === 0 ? 0.6 : 0),
+    };
+  });
+
+  // Shadow side: dither-style dots on the right hemisphere (blue)
+  const shadowDots: { cx: number; cy: number; r: number }[] = [];
+  for (let row = 0; row < 18; row++) {
+    for (let col = 0; col < 18; col++) {
+      const x = 100 + (col - 8.5) * 4.6;
+      const y = 28 + row * 4.6;
+      const dx = x - 100;
+      const dy = y - 100;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 76) continue;
+      // right hemisphere only, with a soft diagonal cut
+      if (dx + dy * 0.25 < 8) continue;
+      if ((row + col) % 2 !== 0) continue;
+      shadowDots.push({ cx: x, cy: y, r: 1.2 });
+    }
+  }
+
+  // Orbiting sparkles
+  const stars = [20, 100, 175, 250, 320].map((deg, i) => {
+    const a = (deg * Math.PI) / 180;
+    return {
+      x: 100 + Math.cos(a) * 95,
+      y: 100 + Math.sin(a) * 95,
+      s: 5 + (i % 3) * 2,
+    };
+  });
+
   return (
-    <Svg width={size} height={size} viewBox="0 0 200 200">
+    <Svg width={size} height={size} viewBox="-10 -10 220 220">
+      {haloDots.map((d, i) => (
+        <Circle key={`h${i}`} cx={d.cx} cy={d.cy} r={d.r} fill={PAINT.sun} opacity={0.65} />
+      ))}
       <Circle cx={100} cy={100} r={80} fill={PAINT.sky} stroke={INK} strokeWidth={3.5} />
+      {shadowDots.map((d, i) => (
+        <Circle key={`s${i}`} cx={d.cx} cy={d.cy} r={d.r} fill={PAINT.blue} opacity={0.5} />
+      ))}
       <Path
         d="M 50 75 Q 38 82 42 95 Q 48 110 65 108 Q 82 105 78 90 Q 80 76 65 72 Q 55 70 50 75 Z"
         fill={PAINT.grass}
@@ -175,6 +222,16 @@ export function Earth({ size = 200 }: { size?: number }) {
       <Path d="M 88 115 Q 100 125 112 115" fill="none" stroke={INK} strokeWidth={2.5} strokeLinecap="round" />
       <Circle cx={72} cy={108} r={3} fill={PAINT.pink} opacity={0.5} />
       <Circle cx={128} cy={108} r={3} fill={PAINT.pink} opacity={0.5} />
+      {stars.map((st, i) => (
+        <Path
+          key={`st${i}`}
+          d={sparklePath(st.s)}
+          fill={PAINT.sun}
+          stroke={INK}
+          strokeWidth={1.2}
+          transform={`translate(${st.x} ${st.y})`}
+        />
+      ))}
     </Svg>
   );
 }
