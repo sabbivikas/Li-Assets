@@ -485,7 +485,7 @@ export default function ReportsScreen() {
               <WobbleButton
                 label={
                   generating
-                    ? "Asking AI…"
+                    ? "Asking Nature…"
                     : step === "type"
                     ? "Continue"
                     : step === "scope"
