@@ -1,10 +1,18 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import React, { ComponentType, useEffect, useRef } from "react";
+import {
+  Animated,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import Svg, {
   Circle,
+  CircleProps,
   Defs,
   Ellipse,
   G,
+  GProps,
   LinearGradient,
   Path,
   RadialGradient,
@@ -12,14 +20,22 @@ import Svg, {
   ClipPath,
 } from "react-native-svg";
 
-// `react-native-svg`'s G/Circle types don't declare a `style` prop, but
-// the underlying components forward it just fine — we use it for the
-// animated transform on the rotating continent strip and the pulsing
-// pin. Cast to `any` so the AnimatedProps type doesn't strip `style`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const AnimatedG = Animated.createAnimatedComponent(G) as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const AnimatedCircle = Animated.createAnimatedComponent(Circle) as any;
+// `react-native-svg`'s G/Circle types don't declare `style`, but the
+// underlying components forward it. Re-type the animated wrappers to
+// add an animated `style` prop so the transform/opacity bindings on
+// the continent strip and the pulsing pin compile without `any`.
+type AnimatedStyle = StyleProp<Animated.WithAnimatedValue<ViewStyle>>;
+type AnimatedGProps = Animated.AnimatedProps<GProps> & {
+  style?: AnimatedStyle;
+  children?: React.ReactNode;
+};
+type AnimatedCircleProps = Animated.AnimatedProps<CircleProps> & {
+  style?: AnimatedStyle;
+};
+const AnimatedG =
+  Animated.createAnimatedComponent(G) as ComponentType<AnimatedGProps>;
+const AnimatedCircle =
+  Animated.createAnimatedComponent(Circle) as ComponentType<AnimatedCircleProps>;
 
 interface Props {
   size?: number;
@@ -243,8 +259,7 @@ export function EarthGlobe({ size = 220, pinLat = null, pinLng = null }: Props) 
           r={4}
           fill="#FACC15"
           opacity={pinOpacity}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          style={{ transform: [{ scale: pinScale as any }] } as any}
+          style={{ transform: [{ scale: pinScale }] }}
         />
         <Circle cx={pinX} cy={pinY} r={3} fill="#FACC15" />
         <Circle cx={pinX} cy={pinY} r={1.4} fill="#FFFFFF" />
