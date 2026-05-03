@@ -28,6 +28,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
         <Label>Reports</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile">
+        <Icon sf={{ default: "person.crop.circle", selected: "person.crop.circle.fill" }} />
+        <Label>Profile</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -118,6 +122,18 @@ function ClassicTabLayout() {
               <SymbolView name="doc.text" tintColor={color} size={24} />
             ) : (
               <Feather name="file-text" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="person.crop.circle" tintColor={color} size={24} />
+            ) : (
+              <Feather name="user" size={22} color={color} />
             ),
         }}
       />
