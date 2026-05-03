@@ -1,45 +1,43 @@
-# EAS Build Setup for Natura
+# Publishing Natura to TestFlight
 
-Follow these steps before running `eas build` or `eas submit` for the first time.
+Natura uses **Replit's Expo Launch** for iOS builds and TestFlight submission.
+Do NOT run `eas build` or `eas submit` manually — Replit handles that for you.
 
-## 1. Set your EAS account slug
+## Prerequisites
 
-Open `artifacts/mobile/app.json` and replace `REPLACE_WITH_EAS_ACCOUNT_SLUG`
-with your Expo / EAS username or organization slug (visible at expo.dev).
+- Apple Developer Program membership (paid, $99/year)
+- App already created in App Store Connect with Bundle ID `app.replit.natura`
+- Expo account: `vikas_sabbi` (expo.dev)
 
-## 2. Register EAS secrets
+## Credentials (enter when Replit prompts during publish)
 
-The production build needs your Clerk publishable key injected at bundle time.
-Run the following from the repo root (EAS secrets are project-scoped):
-
-```bash
-eas secret:create \
-  --name EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY \
-  --value pk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX \
-  --scope project
-```
-
-Once registered the secret is automatically injected into every EAS build
-without needing to list it in `eas.json`.
-
-## 3. Fill in Apple submission credentials
-
-Open `eas.json` and fill in the three fields under `submit.production.ios`:
-
-| Field | Where to find it |
+| Field | Value |
 |---|---|
-| `appleId` | Your Apple ID email (e.g. you@example.com) |
-| `appleTeamId` | 10-character team ID from developer.apple.com > Account > Membership |
-| `ascAppId` | Numeric App ID from App Store Connect > App Information |
+| Apple ID | sabbi.vikas@gmail.com |
+| Apple Team ID | BA9NL64C62 |
+| App Store Connect App ID | 6766054385 |
+| Bundle ID | app.replit.natura |
 
-## 4. Build and submit
+## How to publish
 
-```bash
-# From the repo root:
-eas build --platform ios --profile production
-eas submit --platform ios --profile production
-```
+1. Click the **Publish** button in Replit's top bar
+2. Select the **Natura** mobile artifact
+3. When prompted, connect your Apple Developer account using the credentials above
+4. Replit builds the native iOS binary in the cloud and submits to TestFlight automatically
+5. After Apple's beta review passes (usually a few hours), the build appears in TestFlight
 
-EAS auto-detects pnpm from the `pnpm-lock.yaml` and `packageManager` field in
-`artifacts/mobile/package.json` and installs from the workspace root, so all
-`workspace:*` dependencies resolve correctly.
+## Environment secrets needed for the build
+
+These are already set as Replit secrets and will be injected automatically:
+
+- `CLERK_PUBLISHABLE_KEY` → injected as `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `EXPO_PUBLIC_INATURALIST_API_TOKEN` → used directly
+
+No manual `eas secret:create` steps needed.
+
+## App config
+
+- `app.json` owner: `vikas_sabbi`
+- Bundle ID: `app.replit.natura`
+- Version: `1.0.0` / Build number: `1`
+- To bump the build number for a new TestFlight build, increment `buildNumber` in `app.json`
