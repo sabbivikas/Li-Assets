@@ -14,7 +14,9 @@
       "backgroundColor": "#080C14"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "app.replit.natura",
+      "buildNumber": "1"
     },
     "android": {
       "backgroundColor": "#080C14"

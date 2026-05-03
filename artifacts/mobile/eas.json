@@ -18,10 +18,20 @@
     },
     "production": {
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "$EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY",
+        "EXPO_PUBLIC_DOMAIN": "$EXPO_PUBLIC_DOMAIN"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "",
+        "appleTeamId": "",
+        "ascAppId": ""
+      }
+    }
   }
 }
