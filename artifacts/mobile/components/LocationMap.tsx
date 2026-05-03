@@ -163,8 +163,6 @@ function buildLeafletHtml(
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    background-size: cover;
-    background-position: center;
     background-color: #0F1824;
     border: 2px solid var(--ring, #4ADE80);
     box-shadow:
@@ -173,6 +171,14 @@ function buildLeafletHtml(
       0 4px 10px rgba(0,0,0,0.55);
     transition: transform 200ms ease, box-shadow 200ms ease, border-width 120ms ease;
     position: relative;
+    overflow: hidden;
+  }
+  .photo-pin > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 50%;
   }
   .photo-pin::after {
     content: '';
@@ -190,6 +196,13 @@ function buildLeafletHtml(
     50% { transform: scale(1.22); opacity: 0; }
   }
   .photo-pin:hover { transform: scale(1.1); }
+  .photo-pin.bounce { animation: pinbounce 360ms ease; }
+  @keyframes pinbounce {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.28); }
+    70% { transform: scale(0.96); }
+    100% { transform: scale(1.18); }
+  }
   .photo-pin.is-selected {
     transform: scale(1.18);
     border-width: 3px;
@@ -213,8 +226,6 @@ function buildLeafletHtml(
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background-size: cover;
-    background-position: center;
     background-color: #0F1824;
     border: 2px solid #0B1320;
     box-shadow:
@@ -222,6 +233,14 @@ function buildLeafletHtml(
       0 4px 8px rgba(0,0,0,0.6);
     position: absolute;
     transition: transform 160ms ease;
+    overflow: hidden;
+  }
+  .photo-cluster .cp > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 50%;
   }
   .photo-cluster:hover .cp { transform: translateY(-2px); }
   .photo-cluster .cp1 { left: 0; z-index: 4; }
@@ -366,7 +385,7 @@ function buildLeafletHtml(
       var count = c.getChildCount();
       var stackHtml = '';
       for (var j = 0; j < photos.length; j++) {
-        stackHtml += '<div class="cp cp' + (j + 1) + '" style="background-image:url(&quot;' + photos[j] + '&quot;);"></div>';
+        stackHtml += '<div class="cp cp' + (j + 1) + '"><img loading="lazy" decoding="async" src="' + photos[j] + '" alt="" /></div>';
       }
       var badge = '<div class="cluster-badge">+' + count + '</div>';
       var w = Math.max(photos.length, 1) * 18 + 28;
@@ -378,20 +397,20 @@ function buildLeafletHtml(
     },
   });
 
-  var TOP = 30;
-  pins.forEach(function(p, idx) {
+  pins.slice(0, 30).forEach(function(p, idx) {
     var url = safeUrl(p.photoUrl);
     if (!url) return;
     var ring = p.color || '#FBBF24';
-    var isOverflow = idx >= TOP;
     var imp = Math.max(0, Math.min(1, typeof p.importance === 'number' ? p.importance : 0.4));
-    var size = isOverflow ? 22 : Math.round(30 + imp * 22);
-    var glow = isOverflow ? 6 : Math.round(10 + imp * 14);
+    var size = Math.round(30 + imp * 22);
+    var glow = Math.round(10 + imp * 14);
     var delay = ((idx * 137) % 1000) / 1000;
     var dur = 3.6 + ((idx * 53) % 100) / 80;
     var html =
       '<div class="pin-wrap" style="--float-delay:' + delay.toFixed(2) + 's;--float-dur:' + dur.toFixed(2) + 's;width:' + size + 'px;height:' + size + 'px;">' +
-        '<div class="photo-pin" style="--ring:' + ring + ';--glow:' + glow + 'px;background-image:url(&quot;' + url + '&quot;);"></div>' +
+        '<div class="photo-pin" style="--ring:' + ring + ';--glow:' + glow + 'px;">' +
+          '<img loading="lazy" decoding="async" src="' + url + '" alt="" />' +
+        '</div>' +
       '</div>';
     var marker = L.marker([p.lat, p.lng], {
       icon: L.divIcon({
@@ -406,7 +425,12 @@ function buildLeafletHtml(
     marker.on('click', function() {
       var el = marker.getElement();
       var inner = el ? el.querySelector('.photo-pin') : null;
-      if (inner) setSelected(inner);
+      if (inner) {
+        setSelected(inner);
+        inner.classList.remove('bounce');
+        void inner.offsetWidth;
+        inner.classList.add('bounce');
+      }
       postPinTap(p);
     });
     cluster.addLayer(marker);

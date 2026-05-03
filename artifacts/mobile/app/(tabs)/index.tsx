@@ -156,7 +156,9 @@ export default function HomeScreen() {
       })
       .filter((p): p is NonNullable<typeof p> => p !== null);
 
-    return pins.sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0));
+    return pins
+      .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
+      .slice(0, 30);
   }, [observations]);
 
   const insights = useMemo(() => generateInsights(mapPins), [mapPins]);
