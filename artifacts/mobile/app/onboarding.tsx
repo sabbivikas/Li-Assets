@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   NativeScrollEvent,
@@ -42,6 +42,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocation } from "@/context/LocationContext";
 import { LocationMap } from "@/components/LocationMap";
 import { RiveAnimation, riveAssets } from "@/components/RiveAnimation";
+import {
+  fetchNearbySpecies,
+  getGroupIcon,
+  getIconicGroup,
+} from "@/services/iNaturalist";
+import { useQuery } from "@tanstack/react-query";
 
 const ONBOARDING_COMPLETED_KEY = "onboardingCompleted";
 
@@ -647,9 +653,13 @@ function OnboardingSpeciesCard({
     >
       <Feather name={node.icon as keyof typeof Feather.glyphMap} size={26} color={node.color} />
       <Text
+        numberOfLines={1}
+        ellipsizeMode="tail"
         style={{
           position: "absolute",
           bottom: -16,
+          maxWidth: 96,
+          textAlign: "center",
           fontSize: 10,
           color: "#CBD5E1",
           fontFamily: "Inter_600SemiBold",
@@ -1252,6 +1262,30 @@ export default function OnboardingScreenRoot() {
   const router = useRouter();
   const { requestLocation, completeOnboarding, lat, lng } = useLocation();
 
+  // Pre-fetch a small sample of nearby species so screen 3 can replace
+  // the generic bee/bird/flower placeholders with real local taxa once
+  // location is available. Non-blocking: if data isn't ready, the
+  // existing HIDDEN_NODES placeholders are shown.
+  const { data: nearbySpecies } = useQuery({
+    queryKey: ["onboarding-nearby-species", lat, lng],
+    queryFn: () => fetchNearbySpecies(lat!, lng!, 10, 8),
+    enabled: !!lat && !!lng,
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+
+  const screen3Nodes = useMemo<SpeciesNode[]>(() => {
+    if (!nearbySpecies || nearbySpecies.length === 0) return HIDDEN_NODES;
+    return HIDDEN_NODES.map((base, i) => {
+      const sp = nearbySpecies[i];
+      const taxon = sp?.taxon;
+      const name = taxon?.preferred_common_name || taxon?.name;
+      if (!name) return base;
+      const group = getIconicGroup(taxon?.iconic_taxon_name);
+      return { ...base, label: name, icon: getGroupIcon(group) };
+    });
+  }, [nearbySpecies]);
+
   const scrollRef = useRef<ScrollView>(null);
   const scrollX = useSharedValue(0);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -1434,7 +1468,7 @@ export default function OnboardingScreenRoot() {
             >
               <ConnectorLines
                 active={activeIndex === 2}
-                nodes={HIDDEN_NODES}
+                nodes={screen3Nodes}
                 size={Math.min(SCREEN_W * 0.85, 320)}
               />
               <View
@@ -1458,7 +1492,7 @@ export default function OnboardingScreenRoot() {
               >
                 <Feather name="map-pin" size={20} color="#080C14" />
               </View>
-              {HIDDEN_NODES.map((n, i) => (
+              {screen3Nodes.map((n, i) => (
                 <OnboardingSpeciesCard
                   key={i}
                   active={activeIndex === 2}
