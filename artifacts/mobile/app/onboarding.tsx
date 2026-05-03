@@ -40,6 +40,7 @@ import Svg, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useLocation } from "@/context/LocationContext";
+import { LocationMap } from "@/components/LocationMap";
 import { RiveAnimation, riveAssets } from "@/components/RiveAnimation";
 
 const ONBOARDING_COMPLETED_KEY = "onboardingCompleted";
@@ -343,7 +344,31 @@ function Star({
   );
 }
 
-function AnimatedLocationPin({ active, size = 260 }: { active: boolean; size?: number }) {
+function AnimatedLocationPin({
+  active,
+  size = 260,
+  lat,
+  lng,
+}: {
+  active: boolean;
+  size?: number;
+  lat?: number | null;
+  lng?: number | null;
+}) {
+  // When the user has granted location, swap the Rive/SVG faux map for
+  // a real LocationMap of their area; the pin-drop + ripple overlay
+  // stays on top so the emotional beat is preserved.
+  const hasLocation = typeof lat === "number" && typeof lng === "number";
+  if (hasLocation) {
+    return (
+      <AnimatedLocationPinFallback
+        active={active}
+        size={size}
+        lat={lat}
+        lng={lng}
+      />
+    );
+  }
   return (
     <RiveAnimation
       source={riveAssets.pin}
@@ -353,7 +378,23 @@ function AnimatedLocationPin({ active, size = 260 }: { active: boolean; size?: n
   );
 }
 
-function AnimatedLocationPinFallback({ active, size = 260 }: { active: boolean; size?: number }) {
+function AnimatedLocationPinFallback({
+  active,
+  size = 260,
+  lat,
+  lng,
+}: {
+  active: boolean;
+  size?: number;
+  lat?: number | null;
+  lng?: number | null;
+}) {
+  const hasLocation = typeof lat === "number" && typeof lng === "number";
+  const mapFade = useSharedValue(0);
+  useEffect(() => {
+    mapFade.value = withTiming(hasLocation ? 1 : 0, { duration: 600 });
+  }, [hasLocation, mapFade]);
+  const mapStyle = useAnimatedStyle(() => ({ opacity: mapFade.value }));
   const drop = useSharedValue(0);
   const ripple1 = useSharedValue(0);
   const ripple2 = useSharedValue(0);
@@ -441,6 +482,19 @@ function AnimatedLocationPinFallback({ active, size = 260 }: { active: boolean; 
             />
           ))}
         </Svg>
+        {hasLocation && (
+          <Animated.View
+            style={[StyleSheet.absoluteFill, mapStyle]}
+            pointerEvents="none"
+          >
+            <LocationMap
+              lat={lat as number}
+              lng={lng as number}
+              radiusKm={2}
+              height={size}
+            />
+          </Animated.View>
+        )}
       </View>
 
       <Animated.View
@@ -1195,7 +1249,7 @@ function Dot({ index, scrollX }: { index: number; scrollX: SharedValue<number> }
 export default function OnboardingScreenRoot() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { requestLocation, completeOnboarding } = useLocation();
+  const { requestLocation, completeOnboarding, lat, lng } = useLocation();
 
   const scrollRef = useRef<ScrollView>(null);
   const scrollX = useSharedValue(0);
@@ -1350,7 +1404,14 @@ export default function OnboardingScreenRoot() {
           index={1}
           active={activeIndex === 1}
           scrollX={scrollX}
-          hero={<AnimatedLocationPin active={activeIndex === 1} size={Math.min(SCREEN_W * 0.72, 280)} />}
+          hero={
+            <AnimatedLocationPin
+              active={activeIndex === 1}
+              size={Math.min(SCREEN_W * 0.72, 280)}
+              lat={locationDone === "granted" ? lat : null}
+              lng={locationDone === "granted" ? lng : null}
+            />
+          }
           title="It starts where you stand."
           subtitle={
             locationDone === "mock"
