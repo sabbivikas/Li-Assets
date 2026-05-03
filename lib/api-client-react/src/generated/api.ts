@@ -5,18 +5,25 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  GenerateReportRequest,
+  GenerateReportResponse,
+  HealthStatus,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +106,95 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Takes a structured report context (type, area, group, top species and
+observation counts) and returns AI-generated narrative sections:
+executive summary, key finding, why-it-matters paragraph, three short
+bullet highlights, and four recommended actions. Falls back to safe,
+non-alarmist language. Disclaimer wording is kept on the client.
+
+ * @summary Generate a civic biodiversity report narrative with OpenAI
+ */
+export const getGenerateReportWithAIUrl = () => {
+  return `/api/openai/generate-report`;
+};
+
+export const generateReportWithAI = async (
+  generateReportRequest: GenerateReportRequest,
+  options?: RequestInit,
+): Promise<GenerateReportResponse> => {
+  return customFetch<GenerateReportResponse>(getGenerateReportWithAIUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(generateReportRequest),
+  });
+};
+
+export const getGenerateReportWithAIMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateReportWithAI>>,
+    TError,
+    { data: BodyType<GenerateReportRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateReportWithAI>>,
+  TError,
+  { data: BodyType<GenerateReportRequest> },
+  TContext
+> => {
+  const mutationKey = ["generateReportWithAI"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateReportWithAI>>,
+    { data: BodyType<GenerateReportRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return generateReportWithAI(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateReportWithAIMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateReportWithAI>>
+>;
+export type GenerateReportWithAIMutationBody = BodyType<GenerateReportRequest>;
+export type GenerateReportWithAIMutationError = ErrorType<void>;
+
+/**
+ * @summary Generate a civic biodiversity report narrative with OpenAI
+ */
+export const useGenerateReportWithAI = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateReportWithAI>>,
+    TError,
+    { data: BodyType<GenerateReportRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateReportWithAI>>,
+  TError,
+  { data: BodyType<GenerateReportRequest> },
+  TContext
+> => {
+  return useMutation(getGenerateReportWithAIMutationOptions(options));
+};

@@ -50,9 +50,12 @@ import {
   type GeneratedReport,
   type GroupFilter,
   type Recipient,
+  type ReportInputs,
   type ReportType,
   type ReportTypeMeta,
 } from "@/services/reportTemplate";
+import { generateReportWithAI } from "@/services/aiReport";
+import { useAuth } from "@clerk/expo";
 import {
   deleteReport,
   loadReports,
@@ -78,6 +81,7 @@ export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { lat, lng, radius, cityName } = useLocation();
   const { user } = useUser();
+  const { getToken } = useAuth();
   const userName =
     user?.fullName ||
     user?.primaryEmailAddress?.emailAddress?.split("@")[0] ||
@@ -93,6 +97,8 @@ export default function ReportsScreen() {
 
   // Generated artifact
   const [report, setReport] = useState<GeneratedReport | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // Approval
   const [approved, setApproved] = useState(false);
@@ -168,13 +174,15 @@ export default function ReportsScreen() {
   }, [nearby, selectedGroup]);
 
   // Step navigation helpers
-  function goNext() {
+  async function goNext() {
     Haptics.selectionAsync();
     if (step === "type" && selectedType) setStep("scope");
     else if (step === "scope") {
       // Generate report on entering preview
-      if (!nearby || !lat || !lng) return;
-      const r = generateReport({
+      if (!nearby || lat == null || lng == null) return;
+      setAiError(null);
+      setGenerating(true);
+      const baseInputs = {
         type: selectedType!,
         city: cityName || "Your Location",
         radiusKm: radius,
@@ -182,14 +190,25 @@ export default function ReportsScreen() {
         current: nearby,
         historical: historical || [],
         focusSpecies: typeMeta?.needsSpecies ? focusSpecies : undefined,
-      });
+      };
+      let aiOverride: ReportInputs["aiOverride"] | undefined;
+      try {
+        const token = await getToken();
+        const ai = await generateReportWithAI(baseInputs, { token });
+        aiOverride = ai;
+      } catch (err) {
+        setAiError(
+          err instanceof Error ? err.message : "AI generation failed; using template."
+        );
+      }
+      const r = generateReport({ ...baseInputs, aiOverride });
       setReport(r);
-      // Pre-fill email defaults
       const defaultRecipient = MOCK_RECIPIENTS[0];
       setRecipient(defaultRecipient);
       setEditedSubject(buildEmailSubject(r));
       setEditedBody(buildEmailBody(r, defaultRecipient, userName));
       setApproved(false);
+      setGenerating(false);
       setStep("preview");
     } else if (step === "preview") setStep("approve");
     else if (step === "approve") setStep("send");
@@ -400,7 +419,18 @@ export default function ReportsScreen() {
         )}
 
         {step === "preview" && report && (
-          <PreviewStep report={report} />
+          <>
+            {aiError && (
+              <View style={styles.aiErrorBox}>
+                <Feather name="alert-circle" size={14} color={PAINT.inkSoft} />
+                <Text style={styles.aiErrorText}>
+                  AI couldn{"\u2019"}t reach the server, so this report uses the
+                  built-in template instead.
+                </Text>
+              </View>
+            )}
+            <PreviewStep report={report} />
+          </>
         )}
 
         {step === "approve" && report && (
@@ -454,7 +484,9 @@ export default function ReportsScreen() {
             <View style={{ flex: 1 }}>
               <WobbleButton
                 label={
-                  step === "type"
+                  generating
+                    ? "Asking AI…"
+                    : step === "type"
                     ? "Continue"
                     : step === "scope"
                     ? "Generate Report"
@@ -463,22 +495,31 @@ export default function ReportsScreen() {
                     : "Continue"
                 }
                 onPress={goNext}
-                disabled={!canAdvance(step, {
-                  selectedType,
-                  needsSpecies: typeMeta?.needsSpecies,
-                  focusSpecies,
-                  approved,
-                  recipient,
-                  editedBody,
-                })}
-                color={canAdvance(step, {
-                  selectedType,
-                  needsSpecies: typeMeta?.needsSpecies,
-                  focusSpecies,
-                  approved,
-                  recipient,
-                  editedBody,
-                }) ? PAINT.grass : PAINT.paperDeep}
+                disabled={
+                  generating ||
+                  !canAdvance(step, {
+                    selectedType,
+                    needsSpecies: typeMeta?.needsSpecies,
+                    focusSpecies,
+                    approved,
+                    recipient,
+                    editedBody,
+                  })
+                }
+                color={
+                  generating
+                    ? PAINT.sun
+                    : canAdvance(step, {
+                        selectedType,
+                        needsSpecies: typeMeta?.needsSpecies,
+                        focusSpecies,
+                        approved,
+                        recipient,
+                        editedBody,
+                      })
+                    ? PAINT.grass
+                    : PAINT.paperDeep
+                }
                 width={170}
                 height={50}
                 seed={111}
@@ -1614,6 +1655,25 @@ const styles = StyleSheet.create({
     fontFamily: HAND_FONT,
     fontSize: 18,
     color: PAINT.ink,
+  },
+
+  aiErrorBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 10,
+    marginTop: 12,
+    borderWidth: 1.5,
+    borderColor: PAINT.inkMute,
+    borderStyle: "dashed",
+    backgroundColor: PAINT.cream,
+  },
+  aiErrorText: {
+    flex: 1,
+    fontFamily: LABEL_FONT,
+    fontSize: 11,
+    color: PAINT.inkSoft,
+    lineHeight: 15,
   },
 
   /* Disclaimer */

@@ -6,4 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./generateReportRequest";
+export * from "./generateReportRequestType";
+export * from "./generateReportResponse";
+export * from "./generateReportSpecies";
 export * from "./healthStatus";

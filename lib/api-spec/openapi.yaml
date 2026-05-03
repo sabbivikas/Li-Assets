@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: openai
+    description: OpenAI-backed report generation
 paths:
   /healthz:
     get:
@@ -24,6 +26,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /openai/generate-report:
+    post:
+      operationId: generateReportWithAI
+      tags: [openai]
+      summary: Generate a civic biodiversity report narrative with OpenAI
+      description: |
+        Takes a structured report context (type, area, group, top species and
+        observation counts) and returns AI-generated narrative sections:
+        executive summary, key finding, why-it-matters paragraph, three short
+        bullet highlights, and four recommended actions. Falls back to safe,
+        non-alarmist language. Disclaimer wording is kept on the client.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateReportRequest"
+      responses:
+        "200":
+          description: AI-generated report sections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateReportResponse"
+        "400":
+          description: Invalid request body
+        "500":
+          description: AI provider error
 components:
   schemas:
     HealthStatus:
@@ -33,4 +63,86 @@ components:
           type: string
       required:
         - status
-
+    GenerateReportSpecies:
+      type: object
+      properties:
+        commonName:
+          type: string
+        scientificName:
+          type: string
+        group:
+          type: string
+        role:
+          type: string
+        recentCount:
+          type: integer
+        conservation:
+          type: string
+      required:
+        - commonName
+        - scientificName
+        - recentCount
+    GenerateReportRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - species_concern
+            - biodiversity_change
+            - pollinator_decline
+            - invasive_watch
+            - area_summary
+        city:
+          type: string
+        radiusKm:
+          type: number
+        group:
+          type: string
+        recentObservations:
+          type: integer
+        historicalObservations:
+          type: integer
+        uniqueSpecies:
+          type: integer
+        focusSpecies:
+          $ref: "#/components/schemas/GenerateReportSpecies"
+        topSpecies:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenerateReportSpecies"
+      required:
+        - type
+        - city
+        - radiusKm
+        - group
+        - recentObservations
+        - historicalObservations
+        - uniqueSpecies
+        - topSpecies
+    GenerateReportResponse:
+      type: object
+      properties:
+        title:
+          type: string
+        executiveSummary:
+          type: string
+        keyFinding:
+          type: string
+        whyItMatters:
+          type: string
+        bullets:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+      required:
+        - title
+        - executiveSummary
+        - keyFinding
+        - whyItMatters
+        - bullets
+        - recommendations

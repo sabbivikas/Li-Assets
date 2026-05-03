@@ -183,6 +183,14 @@ export interface ReportInputs {
   current: SpeciesCount[];
   historical: SpeciesCount[];
   focusSpecies?: SpeciesCount;
+  aiOverride?: {
+    title?: string;
+    executiveSummary?: string;
+    keyFinding?: string;
+    whyItMatters?: string;
+    bullets?: string[];
+    recommendations?: string[];
+  };
 }
 
 export interface GeneratedReport {
@@ -259,6 +267,8 @@ export function generateReport(inputs: ReportInputs): GeneratedReport {
       )
     : null;
 
+  const ai = inputs.aiOverride;
+
   // Title per type
   let title = "";
   switch (inputs.type) {
@@ -282,6 +292,7 @@ export function generateReport(inputs: ReportInputs): GeneratedReport {
       title = `Biodiversity Summary: ${inputs.city}`;
       break;
   }
+  if (ai?.title) title = ai.title;
 
   // Executive summary
   let summary = "";
@@ -298,6 +309,7 @@ export function generateReport(inputs: ReportInputs): GeneratedReport {
   } else {
     summary = `This summary reflects ${pluralize(totalObs, "research-grade community observation")} across ${pluralize(uniqueSpecies, "species")} within ${inputs.radiusKm}km of ${inputs.city}. It offers a snapshot of local biodiversity drawn from public observation data.`;
   }
+  if (ai?.executiveSummary) summary = ai.executiveSummary;
 
   // Key finding
   let keyFinding = "";
@@ -318,6 +330,7 @@ export function generateReport(inputs: ReportInputs): GeneratedReport {
   } else {
     keyFinding = `${pluralize(uniqueSpecies, "species")} have been observed in this area in the analyzed window.`;
   }
+  if (ai?.keyFinding) keyFinding = ai.keyFinding;
 
   // Why it matters
   let whyItMatters = "";
@@ -336,6 +349,7 @@ export function generateReport(inputs: ReportInputs): GeneratedReport {
     whyItMatters =
       "Healthy local biodiversity supports pollination, water quality, soil health, and the wellbeing of human communities. A clear baseline helps inform stewardship decisions.";
   }
+  if (ai?.whyItMatters) whyItMatters = ai.whyItMatters;
 
   // Top species details
   const topSpecies = filteredCurrent.slice(0, 5);
@@ -461,8 +475,12 @@ export function generateReport(inputs: ReportInputs): GeneratedReport {
     sections.push("");
   }
 
+  const recs =
+    ai?.recommendations && ai.recommendations.length > 0
+      ? ai.recommendations
+      : recommendations[inputs.type];
   sections.push("RECOMMENDED ACTIONS");
-  recommendations[inputs.type].forEach((r) => sections.push(`• ${r}`));
+  recs.forEach((r) => sections.push(`• ${r}`));
   sections.push("");
 
   sections.push("DATA LIMITATIONS");
@@ -503,6 +521,8 @@ export function generateReport(inputs: ReportInputs): GeneratedReport {
     bullets.push(`${pluralize(uniqueSpecies, "species")} represented`);
     bullets.push(`Within ${inputs.radiusKm}km of ${inputs.city}`);
   }
+  const finalBullets =
+    ai?.bullets && ai.bullets.length > 0 ? ai.bullets.slice(0, 3) : bullets;
 
   return {
     id: `r-${Date.now()}`,
@@ -516,7 +536,7 @@ export function generateReport(inputs: ReportInputs): GeneratedReport {
     focusSpeciesName: focusCommon,
     observationsCount: totalObs,
     uniqueSpeciesCount: uniqueSpecies,
-    bullets,
+    bullets: finalBullets,
     whyItMatters,
     body,
   };

@@ -14,3 +14,57 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Takes a structured report context (type, area, group, top species and
+observation counts) and returns AI-generated narrative sections:
+executive summary, key finding, why-it-matters paragraph, three short
+bullet highlights, and four recommended actions. Falls back to safe,
+non-alarmist language. Disclaimer wording is kept on the client.
+
+ * @summary Generate a civic biodiversity report narrative with OpenAI
+ */
+export const GenerateReportWithAIBody = zod.object({
+  type: zod.enum([
+    "species_concern",
+    "biodiversity_change",
+    "pollinator_decline",
+    "invasive_watch",
+    "area_summary",
+  ]),
+  city: zod.string(),
+  radiusKm: zod.number(),
+  group: zod.string(),
+  recentObservations: zod.number(),
+  historicalObservations: zod.number(),
+  uniqueSpecies: zod.number(),
+  focusSpecies: zod
+    .object({
+      commonName: zod.string(),
+      scientificName: zod.string(),
+      group: zod.string().optional(),
+      role: zod.string().optional(),
+      recentCount: zod.number(),
+      conservation: zod.string().optional(),
+    })
+    .optional(),
+  topSpecies: zod.array(
+    zod.object({
+      commonName: zod.string(),
+      scientificName: zod.string(),
+      group: zod.string().optional(),
+      role: zod.string().optional(),
+      recentCount: zod.number(),
+      conservation: zod.string().optional(),
+    }),
+  ),
+});
+
+export const GenerateReportWithAIResponse = zod.object({
+  title: zod.string(),
+  executiveSummary: zod.string(),
+  keyFinding: zod.string(),
+  whyItMatters: zod.string(),
+  bullets: zod.array(zod.string()),
+  recommendations: zod.array(zod.string()),
+});

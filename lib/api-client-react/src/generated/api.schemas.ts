@@ -8,3 +8,44 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface GenerateReportSpecies {
+  commonName: string;
+  scientificName: string;
+  group?: string;
+  role?: string;
+  recentCount: number;
+  conservation?: string;
+}
+
+export type GenerateReportRequestType =
+  (typeof GenerateReportRequestType)[keyof typeof GenerateReportRequestType];
+
+export const GenerateReportRequestType = {
+  species_concern: "species_concern",
+  biodiversity_change: "biodiversity_change",
+  pollinator_decline: "pollinator_decline",
+  invasive_watch: "invasive_watch",
+  area_summary: "area_summary",
+} as const;
+
+export interface GenerateReportRequest {
+  type: GenerateReportRequestType;
+  city: string;
+  radiusKm: number;
+  group: string;
+  recentObservations: number;
+  historicalObservations: number;
+  uniqueSpecies: number;
+  focusSpecies?: GenerateReportSpecies;
+  topSpecies: GenerateReportSpecies[];
+}
+
+export interface GenerateReportResponse {
+  title: string;
+  executiveSummary: string;
+  keyFinding: string;
+  whyItMatters: string;
+  bullets: string[];
+  recommendations: string[];
+}
