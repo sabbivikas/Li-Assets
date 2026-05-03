@@ -63,6 +63,12 @@ interface Props {
   pins?: SpeciesPin[];
   height?: number;
   onPinSelect?: (pin: PinTapPayload) => void;
+  /**
+   * Fires when a photo-stack cluster is tapped. Receives the deduped
+   * list of species inside the cluster so the host can show a list
+   * sheet instead of the default Leaflet zoom-to-bounds behavior.
+   */
+  onClusterSelect?: (pins: PinTapPayload[]) => void;
   selectedPinId?: number | null;
   /**
    * Render as a clean map preview: hides the user-location Rive pin
@@ -349,28 +355,35 @@ function buildLeafletHtml(
     return encodeURI(u).replace(/['"<>\\\\]/g, encodeURIComponent);
   }
 
-  function postPinTap(p) {
-    var payload = {
-      type: 'pin-tap',
-      source: 'lifeweb-map',
-      pin: {
-        id: p.id,
-        taxonId: p.taxonId,
-        name: p.name,
-        scientificName: p.scientificName,
-        photoUrl: p.photoUrl,
-        photoMediumUrl: p.photoMediumUrl,
-        role: p.role,
-        roleColor: p.color,
-        group: p.group,
-        recentNearbyCount: p.recentNearbyCount,
-      },
+  function pinPayload(p) {
+    return {
+      id: p.id,
+      taxonId: p.taxonId,
+      name: p.name,
+      scientificName: p.scientificName,
+      photoUrl: p.photoUrl,
+      photoMediumUrl: p.photoMediumUrl,
+      role: p.role,
+      roleColor: p.color,
+      group: p.group,
+      recentNearbyCount: p.recentNearbyCount,
     };
+  }
+
+  function postToHost(payload) {
     if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
       window.ReactNativeWebView.postMessage(JSON.stringify(payload));
     } else if (window.parent && window.parent !== window) {
       window.parent.postMessage(payload, '*');
     }
+  }
+
+  function postPinTap(p) {
+    postToHost({ type: 'pin-tap', source: 'lifeweb-map', pin: pinPayload(p) });
+  }
+
+  function postClusterTap(pins) {
+    postToHost({ type: 'cluster-tap', source: 'lifeweb-map', pins: pins });
   }
 
   // Track currently selected pin element so we can deselect later
@@ -395,6 +408,11 @@ function buildLeafletHtml(
     showCoverageOnHover: false,
     maxClusterRadius: 52,
     spiderfyOnMaxZoom: true,
+    // Default behavior zooms the camera into the cluster bounds, which
+    // on a phone often still leaves the user looking at a smaller
+    // cluster. We intercept the click and let the host show a list
+    // sheet of the species inside instead.
+    zoomToBoundsOnClick: false,
     iconCreateFunction: function(c) {
       var children = c.getAllChildMarkers();
       var photos = [];
@@ -417,6 +435,23 @@ function buildLeafletHtml(
     },
   });
   map.addLayer(cluster);
+
+  cluster.on('clusterclick', function(a) {
+    var children = a.layer.getAllChildMarkers();
+    // Dedupe by taxonId (falling back to observation id) so a cluster
+    // of 6 markers showing the same species collapses to one row.
+    var seen = Object.create(null);
+    var pins = [];
+    for (var i = 0; i < children.length; i++) {
+      var src = children[i].options._pin;
+      if (!src) continue;
+      var key = src.taxonId != null ? 't' + src.taxonId : 'i' + src.id;
+      if (seen[key]) continue;
+      seen[key] = 1;
+      pins.push(src);
+    }
+    if (pins.length > 0) postClusterTap(pins);
+  });
 
   // Mirrors MAX_VISIBLE_PINS in LocationMap.tsx.
   var VISIBLE_CAP = ${MAX_VISIBLE_PINS};
@@ -445,6 +480,7 @@ function buildLeafletHtml(
           iconAnchor: [size / 2, size / 2],
         }),
         _photoUrl: url,
+        _pin: pinPayload(p),
         bubblingMouseEvents: false,
       });
       marker.on('click', function() {
@@ -463,6 +499,7 @@ function buildLeafletHtml(
     return L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'overflow-pin', html: '', iconSize: [1, 1] }),
       _photoUrl: url,
+      _pin: pinPayload(p),
       opacity: 0,
       interactive: false,
       keyboard: false,
@@ -519,6 +556,7 @@ type ParsedMessage =
   | { kind: "userPin"; pos: UserPinPosition }
   | { kind: "mapReady" }
   | { kind: "pinTap"; pin: PinTapPayload }
+  | { kind: "clusterTap"; pins: PinTapPayload[] }
   | null;
 
 interface RawMapMessage {
@@ -527,7 +565,17 @@ interface RawMapMessage {
   y?: number;
   visible?: boolean;
   pin?: PinTapPayload;
+  pins?: PinTapPayload[];
   source?: string;
+}
+
+function isPinPayload(p: unknown): p is PinTapPayload {
+  return (
+    !!p &&
+    typeof p === "object" &&
+    typeof (p as PinTapPayload).id === "number" &&
+    typeof (p as PinTapPayload).name === "string"
+  );
 }
 
 function parseMapMessage(raw: unknown): ParsedMessage {
@@ -549,6 +597,14 @@ function parseMapMessage(raw: unknown): ParsedMessage {
   if (m.type === "pin-tap" && m.source === "lifeweb-map" && m.pin && typeof m.pin.id === "number") {
     return { kind: "pinTap", pin: m.pin };
   }
+  if (
+    m.type === "cluster-tap" &&
+    m.source === "lifeweb-map" &&
+    Array.isArray(m.pins)
+  ) {
+    const pins = m.pins.filter(isPinPayload);
+    if (pins.length > 0) return { kind: "clusterTap", pins };
+  }
   return null;
 }
 
@@ -559,6 +615,7 @@ export function LocationMap({
   pins = [],
   height = 280,
   onPinSelect,
+  onClusterSelect,
   selectedPinId,
   preview = false,
 }: Props) {
@@ -581,6 +638,10 @@ export function LocationMap({
   useEffect(() => {
     onPinSelectRef.current = onPinSelect;
   }, [onPinSelect]);
+  const onClusterSelectRef = useRef(onClusterSelect);
+  useEffect(() => {
+    onClusterSelectRef.current = onClusterSelect;
+  }, [onClusterSelect]);
 
   // Reset projected pin + ready flag whenever the map source changes.
   const [pinPos, setPinPos] = useState<UserPinPosition | null>(null);
@@ -611,6 +672,8 @@ export function LocationMap({
     if (parsed.kind === "userPin") setPinPos(parsed.pos);
     else if (parsed.kind === "mapReady") setMapReady(true);
     else if (parsed.kind === "pinTap") onPinSelectRef.current?.(parsed.pin);
+    else if (parsed.kind === "clusterTap")
+      onClusterSelectRef.current?.(parsed.pins);
   };
 
   // Web: receive postMessage from the iframe.

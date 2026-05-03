@@ -15,7 +15,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EarthGlobeRive } from "@/components/EarthGlobeRive";
-import { LocationMap, MAX_PIN_POOL, type SpeciesPin } from "@/components/LocationMap";
+import {
+  LocationMap,
+  MAX_PIN_POOL,
+  type PinTapPayload,
+  type SpeciesPin,
+} from "@/components/LocationMap";
 import { LoadingShimmer, SpeciesCardSkeleton } from "@/components/LoadingShimmer";
 import { RiveEmptyState } from "@/components/RiveEmptyState";
 import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
@@ -24,6 +29,7 @@ import {
   type SpeciesSelection,
 } from "@/components/SpeciesBottomSheet";
 import { SpeciesCard } from "@/components/SpeciesCard";
+import { SpeciesListSheet } from "@/components/SpeciesListSheet";
 import { StatCard } from "@/components/StatCard";
 import { useLocation, type Radius } from "@/context/LocationContext";
 import { useColors } from "@/hooks/useColors";
@@ -75,6 +81,24 @@ export default function HomeScreen() {
     useLocation();
   const [requestingLoc, setRequestingLoc] = useState(false);
   const [selection, setSelection] = useState<SpeciesSelection | null>(null);
+  const [clusterSelection, setClusterSelection] = useState<
+    SpeciesSelection[] | null
+  >(null);
+
+  function pinToSelection(p: PinTapPayload): SpeciesSelection {
+    return {
+      id: p.id,
+      taxonId: p.taxonId,
+      name: p.name,
+      scientificName: p.scientificName,
+      role: p.role,
+      roleColor: p.roleColor,
+      photoUrl: p.photoUrl,
+      photoMediumUrl: p.photoMediumUrl,
+      recentNearbyCount: p.recentNearbyCount,
+      group: p.group,
+    };
+  }
 
   async function handleUseMyLocation() {
     setRequestingLoc(true);
@@ -330,20 +354,10 @@ export default function HomeScreen() {
               pins={mapPins}
               height={340}
               selectedPinId={selection?.id ?? null}
-              onPinSelect={(pin) => {
-                setSelection({
-                  id: pin.id,
-                  taxonId: pin.taxonId,
-                  name: pin.name,
-                  scientificName: pin.scientificName,
-                  role: pin.role,
-                  roleColor: pin.roleColor,
-                  photoUrl: pin.photoUrl,
-                  photoMediumUrl: pin.photoMediumUrl,
-                  recentNearbyCount: pin.recentNearbyCount,
-                  group: pin.group,
-                });
-              }}
+              onPinSelect={(pin) => setSelection(pinToSelection(pin))}
+              onClusterSelect={(pins) =>
+                setClusterSelection(pins.map(pinToSelection))
+              }
             />
             {mapPins.length > 0 && (
               <View style={styles.mapLegend}>
@@ -595,6 +609,17 @@ export default function HomeScreen() {
       <SpeciesBottomSheet
         selection={selection}
         onClose={() => setSelection(null)}
+      />
+      <SpeciesListSheet
+        pins={clusterSelection}
+        onClose={() => setClusterSelection(null)}
+        onSelect={(pin) => {
+          setClusterSelection(null);
+          // Wait for the list sheet to finish its dismiss animation
+          // before we open the species sheet, so the two sheets don't
+          // overlap mid-transition.
+          setTimeout(() => setSelection(pin), 260);
+        }}
       />
     </View>
   );
