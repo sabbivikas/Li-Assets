@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   Pressable,
   RefreshControl,
@@ -24,7 +25,7 @@ import {
 } from "@/components/SpeciesBottomSheet";
 import { SpeciesCard } from "@/components/SpeciesCard";
 import { StatCard } from "@/components/StatCard";
-import { useLocation } from "@/context/LocationContext";
+import { useLocation, type Radius } from "@/context/LocationContext";
 import { useColors } from "@/hooks/useColors";
 import { withCache } from "@/services/cache";
 import {
@@ -53,6 +54,8 @@ const GROUP_COLORS: Record<string, string> = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+const RADIUS_STEPS: Radius[] = [5, 10, 25, 50];
+
 const roleCache = new Map<string, ReturnType<typeof getEcosystemRoles>>();
 function cachedRoles(iconic?: string, name?: string) {
   const key = `${iconic || ""}|${name || ""}`;
@@ -68,7 +71,7 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { lat, lng, radius, cityName, permissionGranted, requestLocation } =
+  const { lat, lng, radius, cityName, permissionGranted, requestLocation, setRadius } =
     useLocation();
   const [requestingLoc, setRequestingLoc] = useState(false);
   const [selection, setSelection] = useState<SpeciesSelection | null>(null);
@@ -172,6 +175,26 @@ export default function HomeScreen() {
 
   const insights = useMemo(() => generateInsights(mapPins), [mapPins]);
 
+  // Loaded successfully, located, but iNaturalist returned nothing nearby.
+  const isEmpty =
+    permissionGranted &&
+    lat != null &&
+    lng != null &&
+    !isLoading &&
+    !observationsError &&
+    observations !== undefined &&
+    mapPins.length === 0;
+
+  const nextRadius = RADIUS_STEPS.find((r) => r > radius) ?? null;
+
+  function openInaturalistNearby() {
+    if (lat == null || lng == null) return;
+    const url =
+      `https://www.inaturalist.org/observations?` +
+      `lat=${lat}&lng=${lng}&radius=${radius}&place_id=any`;
+    void Linking.openURL(url);
+  }
+
   const stats = useMemo(() => {
     const now = Date.now();
     const uniqueIds = new Set<number>();
@@ -258,7 +281,43 @@ export default function HomeScreen() {
         </View>
 
         {/* Hero map / globe */}
-        {permissionGranted && lat && lng ? (
+        {isEmpty ? (
+          <View style={[styles.emptyHero, { backgroundColor: colors.card }]}>
+            <RiveEmptyState
+              icon="search"
+              title="No recent sightings here yet"
+              description={`iNaturalist has no observations within ${radius}km of ${cityName ?? "you"} in the last 30 days. Try widening the search or be the first to log one.`}
+            />
+            <View style={styles.emptyActions}>
+              {nextRadius != null && (
+                <Pressable
+                  onPress={() => void setRadius(nextRadius)}
+                  style={({ pressed }) => [
+                    styles.emptyPrimaryBtn,
+                    { opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <Feather name="maximize-2" size={14} color="#080C14" />
+                  <Text style={styles.emptyPrimaryBtnText}>
+                    Widen to {nextRadius}km
+                  </Text>
+                </Pressable>
+              )}
+              <Pressable
+                onPress={openInaturalistNearby}
+                style={({ pressed }) => [
+                  styles.emptySecondaryBtn,
+                  { opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Feather name="external-link" size={14} color="#4ADE80" />
+                <Text style={styles.emptySecondaryBtnText}>
+                  Open in iNaturalist
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : permissionGranted && lat && lng ? (
           <View style={styles.mapSection}>
             <LocationMap
               lat={lat}
@@ -339,17 +398,19 @@ export default function HomeScreen() {
         )}
 
         {/* Hero status banner */}
-        <View style={styles.heroBanner}>
-          <View style={styles.heroDot} />
-          <Text style={styles.heroText}>
-            {stats.uniqueSpecies > 0
-              ? `${stats.uniqueSpecies} species pulsing within ${radius}km of ${cityName ?? "you"}`
-              : `Listening to the life web around ${cityName ?? "you"}`}
-          </Text>
-        </View>
+        {!isEmpty && (
+          <View style={styles.heroBanner}>
+            <View style={styles.heroDot} />
+            <Text style={styles.heroText}>
+              {stats.uniqueSpecies > 0
+                ? `${stats.uniqueSpecies} species pulsing within ${radius}km of ${cityName ?? "you"}`
+                : `Listening to the life web around ${cityName ?? "you"}`}
+            </Text>
+          </View>
+        )}
 
         {/* Stats row — every number derived from the same observations dataset */}
-        {isLoading ? (
+        {isEmpty ? null : isLoading ? (
           <View style={[styles.statsLoading, { backgroundColor: colors.card }]}>
             <RiveLoadingShimmer hero width={120} height={120} />
           </View>
@@ -433,31 +494,33 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Top species */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Most Observed Nearby</Text>
-            <Pressable onPress={() => router.push("/(tabs)/species")}>
-              <Text style={styles.seeAll}>See all</Text>
-            </Pressable>
-          </View>
+        {/* Top species — hidden when the empty hero is already explaining the state */}
+        {!isEmpty && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Most Observed Nearby</Text>
+              <Pressable onPress={() => router.push("/(tabs)/species")}>
+                <Text style={styles.seeAll}>See all</Text>
+              </Pressable>
+            </View>
 
-          {isLoading ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.card, alignItems: "center" }]}>
-              <RiveLoadingShimmer hero width={120} height={120} />
-            </View>
-          ) : topSpecies.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
-              <RiveEmptyState
-                icon="search"
-                title="No observations found"
-                description="Try increasing your search radius in settings."
-              />
-            </View>
-          ) : (
-            topSpecies.map((s) => <SpeciesCard key={s.taxon.id} item={s} />)
-          )}
-        </View>
+            {isLoading ? (
+              <View style={[styles.emptyState, { backgroundColor: colors.card, alignItems: "center" }]}>
+                <RiveLoadingShimmer hero width={120} height={120} />
+              </View>
+            ) : topSpecies.length === 0 ? (
+              <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
+                <RiveEmptyState
+                  icon="search"
+                  title="No observations found"
+                  description="Try increasing your search radius in settings."
+                />
+              </View>
+            ) : (
+              topSpecies.map((s) => <SpeciesCard key={s.taxon.id} item={s} />)
+            )}
+          </View>
+        )}
 
         {/* Quick actions */}
         <View style={styles.quickActions}>
@@ -760,6 +823,52 @@ const styles = StyleSheet.create({
     padding: 28,
     alignItems: "center",
     gap: 8,
+  },
+  emptyHero: {
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+  },
+  emptyActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 10,
+  },
+  emptyPrimaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#4ADE80",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+  },
+  emptyPrimaryBtnText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#080C14",
+  },
+  emptySecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "transparent",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#4ADE8055",
+  },
+  emptySecondaryBtnText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#4ADE80",
   },
   emptyTitle: {
     fontSize: 15,
