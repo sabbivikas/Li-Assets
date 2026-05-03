@@ -162,8 +162,14 @@ overrides:
   # Security overrides — force safe versions of transitive dependencies.
   # Each line maps to one or more advisories from `pnpm audit`.
   # ----------------------------------------------------------------
-  # GHSA-f886-m6hf-6m8v — brace-expansion ReDoS / hang on zero-step
-  brace-expansion: "^2.0.3"
+  # GHSA-f886-m6hf-6m8v — brace-expansion ReDoS / hang on zero-step.
+  # Patch each affected major in place; do NOT collapse to a single
+  # range, because minimatch@10 requires brace-expansion@^5 and
+  # would break if forced down to v2.
+  "brace-expansion@>=1.0.0 <1.1.12": "^1.1.12"
+  "brace-expansion@>=2.0.0 <2.0.2": "^2.0.2"
+  "brace-expansion@>=3.0.0 <3.0.2": "^3.0.2"
+  "brace-expansion@>=4.0.0 <4.0.1": "^4.0.1"
   # GHSA-c2c7-rcm5-vvqj, GHSA-3v7f-55p6-f55p — picomatch ReDoS &
   # POSIX class method injection. Range overrides keep both v2 (used
   # by micromatch) and v4 (used by tinyglobby) on patched lines.
