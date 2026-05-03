@@ -1,0 +1,178 @@
+Build an excellent animated onboarding flow for the React Native Expo app “Life Web”.
+
+Goal:
+The onboarding should explain the problem clearly through story, visuals, and motion. It should feel premium, emotional, and easy to understand. The user should understand: nature around them is changing, local species are connected, one species disappearing can affect the whole ecosystem, and this app helps them see it and take action.
+
+Use:
+- React Native Expo
+- React Navigation
+- react-native-reanimated for smooth animations
+- expo-linear-gradient
+- expo-haptics
+- expo-location
+- Lottie if available, otherwise use animated React Native views/SVG-style shapes
+- No paid APIs for onboarding
+
+Create a 6-screen swipe onboarding carousel with page indicators and a persistent “Continue” button. Add “Skip” only on screens 2 onward.
+
+Design style:
+- Premium environmental UI
+- Dark space/Earth theme
+- Glowing gradients
+- Smooth cinematic motion
+- Big visuals, minimal text
+- Rounded cards
+- Soft shadows
+- Consumer-friendly language
+- Make it feel like “Google Earth meets climate action”
+
+Animation requirements:
+- Use animated opacity, scale, translateY, and rotate animations.
+- Use parallax movement between screens.
+- Add subtle floating animations to Earth, species cards, and ecosystem nodes.
+- Add haptic feedback when moving to the next screen.
+- Use smooth 500–800ms transitions.
+- Avoid jarring animations.
+- Use easing curves for premium feel.
+- Page indicator dots should animate width and opacity.
+- The main visual on each screen should animate in before the text.
+- Text should fade in and slide up after the visual.
+- The CTA button should gently scale in after text appears.
+
+Screen 1: Hook
+Title:
+“Nature around you is changing.”
+
+Subtitle:
+“Most people never notice it.”
+
+Visual:
+A glowing Earth floating in space.
+Animation:
+- Earth slowly rotates.
+- Soft blue/green glow pulses behind Earth.
+- Tiny star particles drift slowly.
+- Title fades in after Earth appears.
+
+Screen 2: Make it local
+Title:
+“It’s happening right where you live.”
+
+Subtitle:
+“Your neighborhood is part of a living ecosystem.”
+
+Visual:
+Earth zooms into a glowing location pin.
+Animation:
+- Start with small Earth.
+- Animate zoom toward a map-like circular area.
+- Drop a glowing pin with a bounce.
+- Add ripple rings expanding from the pin.
+Location permission:
+Add button text:
+“Show my local ecosystem”
+When tapped, request location permission using expo-location.
+If permission is denied, continue with mock location.
+
+Screen 3: Reveal hidden life
+Title:
+“You’re surrounded by life you don’t see.”
+
+Subtitle:
+“Birds, insects, plants, fungi, and animals all form your local life web.”
+
+Visual:
+Species cards appear around the location pin.
+Cards:
+- Bee
+- Bird
+- Flower
+- Frog
+- Mushroom
+Animation:
+- Cards float in one by one.
+- Each card has a slight hover animation.
+- Connections between cards draw in as thin glowing lines.
+
+Screen 4: The problem
+Title:
+“But what happens when one disappears?”
+
+Subtitle:
+“Small changes can create a chain reaction.”
+
+Visual:
+Show a bee node connected to flowers, fruit, birds, and plants.
+Animation:
+- Bee node glows first.
+- Bee fades out slowly.
+- Connected nodes dim one after another.
+- Arrows animate in sequence:
+  Bee disappears → fewer flowers pollinated → less fruit/seeds → birds lose food → plant diversity weakens.
+Use simple plain-language labels on each node.
+
+Screen 5: The app’s promise
+Title:
+“See what’s changing. Understand why it matters.”
+
+Subtitle:
+“Life Web uses local biodiversity observations to turn hidden signals into simple visual stories.”
+
+Visual:
+A dashboard preview with:
+- local species count
+- climate signal card
+- impact chain card
+- report card
+Animation:
+- Cards stack in with staggered slide-up motion.
+- A glowing line connects “Species” → “Signal” → “Impact” → “Action”.
+
+Screen 6: Action
+Title:
+“Turn awareness into action.”
+
+Subtitle:
+“Create simple reports you can share with local leaders, media, schools, and your community.”
+
+Visual:
+A report card transforms into share/email cards.
+Animation:
+- Report card slides into center.
+- It duplicates into three smaller cards:
+  Local Leader
+  Media
+  Community
+- Cards fan out smoothly.
+- Final Earth glow appears behind them.
+
+Final CTA:
+“Explore my area”
+
+Behavior:
+- After final CTA, save onboardingCompleted=true in AsyncStorage.
+- Navigate to Home screen.
+- If Home screen does not exist, create a placeholder Home screen with text “Life Web Home”.
+
+Implementation details:
+- Create reusable OnboardingScreen component.
+- Create animated components:
+  AnimatedEarth
+  AnimatedLocationPin
+  SpeciesCard
+  EcosystemChain
+  DashboardPreview
+  ReportSharePreview
+- Use local mock visuals/icons if no image assets exist.
+- Use emojis or simple vector-style circles/icons if needed.
+- Keep performance smooth on mobile.
+- Make the onboarding responsive for small and large phones.
+- Include safe area handling.
+- Add accessibility labels for buttons.
+- Keep code clean and modular.
+
+Important:
+Do not create a boring static onboarding.
+The onboarding must feel like a short cinematic story.
+The user should understand the app without reading long paragraphs.
+Use short copy, strong visuals, and meaningful motion.
