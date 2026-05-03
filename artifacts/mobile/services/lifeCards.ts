@@ -270,7 +270,7 @@ export const BADGE_META: Record<
 > = {
   common: {
     label: "Common",
-    color: "#7fc77f",
+    color: "#6a8a6a",
     description: "Frequently observed nearby.",
   },
   rare: {
@@ -295,7 +295,7 @@ export const BADGE_META: Record<
   },
   sensitive: {
     label: "Sensitive",
-    color: "#5b8def",
+    color: "#7a7a9a",
     description: "Conservation-sensitive — locations are generalised.",
   },
 };

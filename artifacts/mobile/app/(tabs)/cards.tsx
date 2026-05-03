@@ -1,10 +1,8 @@
 import { Feather } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import * as Linking from "expo-linking";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -14,22 +12,23 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Path } from "react-native-svg";
 
 import { LifeCardView } from "@/components/LifeCardView";
 import {
   Bee,
   CrayonUnderline,
+  Frog,
   HAND_FONT,
   LABEL_FONT,
   Mushroom,
   PaperBackground,
   PAINT,
-  WobbleBox,
   WobbleButton,
+  wobble,
+  wobbleRect,
 } from "@/components/paint";
 import {
-  BADGE_META,
-  deleteCard,
   enrichCard,
   loadCards,
   type CardBadge,
@@ -49,17 +48,19 @@ type FilterKey =
   | "rare";
 
 const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: "all", label: "all" },
-  { key: "Birds", label: "birds" },
-  { key: "Insects", label: "insects" },
-  { key: "Plants", label: "plants" },
-  { key: "Mammals", label: "mammals" },
-  { key: "Amphibians", label: "amphibians" },
-  { key: "Fungi", label: "fungi" },
-  { key: "keystone", label: "keystone" },
-  { key: "rare", label: "rare" },
-  { key: "missing", label: "missing" },
+  { key: "all", label: "All" },
+  { key: "Birds", label: "Birds" },
+  { key: "Insects", label: "Insects" },
+  { key: "Plants", label: "Plants" },
+  { key: "Mammals", label: "Mammals" },
+  { key: "Amphibians", label: "Amphibians" },
+  { key: "Fungi", label: "Fungi" },
+  { key: "missing", label: "Missing" },
+  { key: "keystone", label: "Keystone" },
+  { key: "rare", label: "Rare" },
 ];
+
+const WEEK_MS = 7 * 86_400_000;
 
 export default function CardsScreen() {
   const insets = useSafeAreaInsets();
@@ -67,7 +68,6 @@ export default function CardsScreen() {
   const [cards, setCards] = useState<LifeCard[]>([]);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [search, setSearch] = useState("");
-  const [open, setOpen] = useState<LifeCard | null>(null);
 
   const refresh = useCallback(async () => {
     const stored = await loadCards();
@@ -94,7 +94,9 @@ export default function CardsScreen() {
       if (groupSet.includes(filter)) {
         list = list.filter((c) => c.group === filter);
       } else {
-        list = list.filter((c) => (c.badges as CardBadge[]).includes(filter as CardBadge));
+        list = list.filter((c) =>
+          (c.badges as CardBadge[]).includes(filter as CardBadge)
+        );
       }
     }
     if (search.trim()) {
@@ -109,21 +111,40 @@ export default function CardsScreen() {
   }, [cards, filter, search]);
 
   const sections = useMemo(() => {
-    const localCollection = filtered;
+    const now = Date.now();
+    const isRecent = (iso?: string) =>
+      iso ? now - new Date(iso).getTime() < WEEK_MS : false;
+    const collection = filtered;
+    const newNearYou = filtered.filter(
+      (c) => c.signalFlags.isNewActivity && isRecent(c.lastSeenDate)
+    );
     const missing = filtered.filter((c) => c.badges.includes("missing"));
     const keystone = filtered.filter((c) => c.badges.includes("keystone"));
-    const sensitive = filtered.filter((c) => c.isSensitive);
-    return { localCollection, missing, keystone, sensitive };
+    return { collection, newNearYou, missing, keystone };
   }, [filtered]);
+
+  const dailyHook = useMemo(() => {
+    const now = Date.now();
+    const active = cards.filter(
+      (c) =>
+        c.lastSeenDate && now - new Date(c.lastSeenDate).getTime() < WEEK_MS
+    ).length;
+    const missing = cards.filter((c) => c.badges.includes("missing")).length;
+    const newish = cards.filter(
+      (c) => now - new Date(c.unlockedAt).getTime() < WEEK_MS
+    ).length;
+    return { active, missing, newish };
+  }, [cards]);
 
   const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
   const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
-  async function handleDelete(card: LifeCard) {
-    await deleteCard(card.taxonId);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    refresh();
-    setOpen(null);
+  function openCard(c: LifeCard) {
+    Haptics.selectionAsync();
+    router.push({
+      pathname: "/cards/[id]",
+      params: { id: String(c.taxonId) },
+    } as never);
   }
 
   return (
@@ -139,12 +160,18 @@ export default function CardsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <Text style={styles.title}>Life Cards</Text>
-        <CrayonUnderline width={180} color={PAINT.purple} seed={2} />
-        <Text style={styles.subtitle}>
-          The real species you&apos;ve discovered around you.
-        </Text>
+        {/* Header — kicker + title + count */}
+        <Text style={styles.kicker}>~ Local Field Collection ~</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.title}>Life Cards</Text>
+            <CrayonUnderline width={140} color={PAINT.sun} seed={2} />
+          </View>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.countBig}>{cards.length}</Text>
+            <Text style={styles.countSub}>collected nearby</Text>
+          </View>
+        </View>
 
         {/* Search */}
         <View style={styles.searchWrap}>
@@ -152,7 +179,7 @@ export default function CardsScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="search by name…"
+            placeholder="search by common or scientific name…"
             placeholderTextColor={PAINT.inkMute}
             style={styles.searchInput}
           />
@@ -163,7 +190,7 @@ export default function CardsScreen() {
           )}
         </View>
 
-        {/* Filter chips */}
+        {/* Filter pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -171,6 +198,7 @@ export default function CardsScreen() {
         >
           {FILTERS.map((f, i) => {
             const active = filter === f.key;
+            const w = f.label.length * 8 + 28;
             return (
               <Pressable
                 key={f.key}
@@ -178,22 +206,33 @@ export default function CardsScreen() {
                   Haptics.selectionAsync();
                   setFilter(f.key);
                 }}
+                style={{ height: 30, marginRight: 6 }}
               >
-                <WobbleBox
-                  width={f.label.length * 11 + 28}
-                  height={36}
-                  fill={active ? PAINT.sun : "white"}
-                  seed={i + 30}
-                  padding={0}
-                >
-                  <View style={styles.chipInner}>
-                    <Text style={styles.chipText}>{f.label}</Text>
-                  </View>
-                </WobbleBox>
+                <Svg width={w} height={30}>
+                  <Path
+                    d={wobbleRect(2, 2, w - 4, 26, 1, i + 50)}
+                    fill={active ? PAINT.ink : "white"}
+                    stroke={PAINT.ink}
+                    strokeWidth={1.8}
+                  />
+                </Svg>
+                <View style={styles.chipLabelWrap}>
+                  <Text
+                    style={[
+                      styles.chipLabel,
+                      { color: active ? PAINT.paper : PAINT.ink },
+                    ]}
+                  >
+                    {f.label}
+                  </Text>
+                </View>
               </Pressable>
             );
           })}
         </ScrollView>
+
+        {/* Today near you */}
+        {cards.length > 0 && <DailyHook hook={dailyHook} />}
 
         {cards.length === 0 ? (
           <EmptyState
@@ -208,40 +247,46 @@ export default function CardsScreen() {
           </View>
         ) : (
           <>
-            {/* Your Local Collection */}
+            {/* Local Collection */}
             <SectionHeader
               title="Your Local Collection"
-              count={sections.localCollection.length}
+              sub="cards earned near you"
+              color={PAINT.grass}
             />
             <View style={styles.grid}>
-              {sections.localCollection.map((c, i) => (
-                <LifeCardView
-                  key={c.taxonId}
-                  card={c}
-                  size="compact"
-                  seed={i * 5 + 41}
-                  onPress={() => setOpen(c)}
-                />
+              {sections.collection.map((c, i) => (
+                <CardCell key={c.taxonId} idx={i}>
+                  <LifeCardView
+                    card={c}
+                    seedOffset={i * 5 + 41}
+                    onPress={() => openCard(c)}
+                  />
+                </CardCell>
               ))}
             </View>
 
-            {/* Keystone */}
-            {sections.keystone.length > 0 && (
+            {/* New Near You — locked teasers with NEW stamp */}
+            {sections.newNearYou.length > 0 && (
               <>
                 <SectionHeader
-                  title="Keystone Species"
-                  count={sections.keystone.length}
-                  caption="Their role shapes the local life web."
+                  title="New Near You"
+                  sub="recent activity — tap to unlock"
+                  color={PAINT.orange}
+                  pulse
                 />
                 <View style={styles.grid}>
-                  {sections.keystone.map((c, i) => (
-                    <LifeCardView
-                      key={`k-${c.taxonId}`}
-                      card={c}
-                      size="compact"
-                      seed={i * 5 + 91}
-                      onPress={() => setOpen(c)}
-                    />
+                  {sections.newNearYou.slice(0, 4).map((c, i) => (
+                    <CardCell key={`n-${c.taxonId}`} idx={i}>
+                      <View style={{ position: "relative" }}>
+                        <LifeCardView
+                          card={c}
+                          seedOffset={i * 5 + 71}
+                          locked
+                          onPress={() => openCard(c)}
+                        />
+                        <NewStamp />
+                      </View>
+                    </CardCell>
                   ))}
                 </View>
               </>
@@ -252,40 +297,40 @@ export default function CardsScreen() {
               <>
                 <SectionHeader
                   title="Missing Cards"
-                  count={sections.missing.length}
-                  caption="Historically here. Not seen recently."
+                  sub="historically here, not seen recently"
+                  color={PAINT.red}
                 />
                 <View style={styles.grid}>
                   {sections.missing.map((c, i) => (
-                    <LifeCardView
-                      key={`m-${c.taxonId}`}
-                      card={c}
-                      size="compact"
-                      seed={i * 5 + 131}
-                      onPress={() => setOpen(c)}
-                    />
+                    <CardCell key={`m-${c.taxonId}`} idx={i}>
+                      <LifeCardView
+                        card={c}
+                        seedOffset={i * 5 + 131}
+                        onPress={() => openCard(c)}
+                      />
+                    </CardCell>
                   ))}
                 </View>
               </>
             )}
 
-            {/* Sensitive */}
-            {sections.sensitive.length > 0 && (
+            {/* Keystone */}
+            {sections.keystone.length > 0 && (
               <>
                 <SectionHeader
-                  title="Sensitive Species"
-                  count={sections.sensitive.length}
-                  caption="Locations are intentionally generalized."
+                  title="Keystone Species"
+                  sub="critical to your local web"
+                  color={PAINT.sun}
                 />
                 <View style={styles.grid}>
-                  {sections.sensitive.map((c, i) => (
-                    <LifeCardView
-                      key={`s-${c.taxonId}`}
-                      card={c}
-                      size="compact"
-                      seed={i * 5 + 171}
-                      onPress={() => setOpen(c)}
-                    />
+                  {sections.keystone.map((c, i) => (
+                    <CardCell key={`k-${c.taxonId}`} idx={i}>
+                      <LifeCardView
+                        card={c}
+                        seedOffset={i * 5 + 91}
+                        onPress={() => openCard(c)}
+                      />
+                    </CardCell>
                   ))}
                 </View>
               </>
@@ -295,60 +340,180 @@ export default function CardsScreen() {
 
         {/* Caveat */}
         <View style={styles.caveat}>
-          <Text style={styles.caveatLabel}>about the data</Text>
           <Text style={styles.caveatText}>
-            Based on community science observations. Missing observations do
-            not always mean a species is absent. Observe respectfully — do not
-            disturb wildlife or enter restricted areas.
+            Based on community-science observations.{"\n"}
+            Missing observations don&apos;t always mean absent.
           </Text>
         </View>
       </ScrollView>
-
-      {/* Detail modal */}
-      <CardDetailModal
-        card={open}
-        onClose={() => setOpen(null)}
-        onSeeImpact={(c) => {
-          setOpen(null);
-          router.push({
-            pathname: "/impact/[id]",
-            params: { id: String(c.taxonId) },
-          } as never);
-        }}
-        onOpenSpecies={(c) => {
-          setOpen(null);
-          router.push({
-            pathname: "/species/[id]",
-            params: { id: String(c.taxonId) },
-          } as never);
-        }}
-        onContribute={() => {
-          Linking.openURL("https://www.inaturalist.org/observations/upload");
-        }}
-        onDelete={handleDelete}
-      />
     </View>
   );
 }
 
-function SectionHeader({
-  title,
-  count,
-  caption,
+/* ---------- daily hook card ---------- */
+function DailyHook({
+  hook,
 }: {
-  title: string;
-  count: number;
-  caption?: string;
+  hook: { active: number; missing: number; newish: number };
 }) {
+  const W = 358;
   return (
-    <View style={{ marginTop: 22 }}>
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        <View style={styles.sectionCount}>
-          <Text style={styles.sectionCountText}>{count}</Text>
+    <View style={{ marginTop: 14, height: 100 }}>
+      <Svg width="100%" height={100} viewBox={`0 0 ${W} 100`} preserveAspectRatio="none">
+        <Path
+          d={wobbleRect(3, 3, W - 6, 94, 2, 71)}
+          fill="#fff8d6"
+          stroke={PAINT.ink}
+          strokeWidth={2.5}
+        />
+        <Path
+          d={wobbleRect(7, 7, W - 14, 86, 1.5, 72)}
+          fill="none"
+          stroke={PAINT.sun}
+          strokeWidth={1.5}
+          strokeDasharray="3 3"
+        />
+      </Svg>
+      <View style={styles.hookContent}>
+        <View style={styles.hookHeader}>
+          <Text style={styles.hookTitle}>Today near you</Text>
+          <Text style={styles.hookDate}>
+            {new Date()
+              .toLocaleDateString(undefined, { weekday: "short" })
+              .toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.hookStats}>
+          <HookStat
+            icon={<Bee size={26} />}
+            big={`${hook.active} active`}
+            small="recent sightings"
+            color={PAINT.grass}
+          />
+          <HookStat
+            icon={<Frog size={26} />}
+            big={`${hook.missing} missing`}
+            small="not seen lately"
+            color={PAINT.red}
+          />
+          <HookStat
+            icon={<Mushroom size={26} />}
+            big={`${hook.newish} new`}
+            small="just unlocked"
+            color={PAINT.purple}
+          />
         </View>
       </View>
-      {caption && <Text style={styles.sectionCaption}>{caption}</Text>}
+    </View>
+  );
+}
+
+function HookStat({
+  icon,
+  big,
+  small,
+  color,
+}: {
+  icon: React.ReactNode;
+  big: string;
+  small: string;
+  color: string;
+}) {
+  return (
+    <View style={styles.hookStat}>
+      <View>{icon}</View>
+      <View>
+        <Text style={styles.hookStatBig}>{big}</Text>
+        <Text style={[styles.hookStatSmall, { color }]}>{small}</Text>
+      </View>
+    </View>
+  );
+}
+
+/* ---------- section header ---------- */
+function SectionHeader({
+  title,
+  sub,
+  color,
+  pulse = false,
+}: {
+  title: string;
+  sub: string;
+  color: string;
+  pulse?: boolean;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <Svg width={60} height={6} style={{ marginTop: 1, marginLeft: -1 }}>
+          <Path
+            d={wobble(0, 3, 60, 3, 1.2, 8, title.length)}
+            stroke={color}
+            strokeWidth={3}
+            fill="none"
+            strokeLinecap="round"
+            opacity={0.7}
+          />
+        </Svg>
+        <Text style={styles.sectionSub}>{sub}</Text>
+      </View>
+      {pulse && (
+        <Svg width={14} height={14} style={{ marginLeft: 8 }}>
+          <Circle cx={7} cy={7} r={5} fill={color} opacity={0.5} />
+          <Circle cx={7} cy={7} r={3} fill={color} />
+        </Svg>
+      )}
+    </View>
+  );
+}
+
+/* ---------- NEW corner stamp ---------- */
+function NewStamp() {
+  const w = 56;
+  const h = 32;
+  return (
+    <View
+      style={{
+        position: "absolute",
+        top: -4,
+        left: -10,
+        width: w,
+        height: h,
+        transform: [{ rotate: "-12deg" }],
+      }}
+    >
+      <Svg width={w} height={h}>
+        <Path
+          d={wobbleRect(2, 2, w - 4, h - 4, 1, 88)}
+          fill={PAINT.orange}
+          stroke={PAINT.ink}
+          strokeWidth={2}
+        />
+      </Svg>
+      <View style={[StyleSheet.absoluteFill, styles.newStampInner]}>
+        <Text style={styles.newStampText}>NEW</Text>
+      </View>
+    </View>
+  );
+}
+
+function CardCell({
+  children,
+  idx,
+}: {
+  children: React.ReactNode;
+  idx: number;
+}) {
+  return (
+    <View
+      style={{
+        width: "50%",
+        alignItems: "center",
+        marginTop: idx < 2 ? 0 : 18,
+      }}
+    >
+      {children}
     </View>
   );
 }
@@ -360,8 +525,7 @@ function EmptyState({ onExplore }: { onExplore: () => void }) {
       <Text style={styles.emptyTitle}>No cards yet</Text>
       <Text style={styles.emptyBody}>
         Tap any species in the Species tab to discover and unlock its Life
-        Card. As you learn more — its role, its signal — the card grows with
-        you.
+        Card. As you learn its role and signal, the card grows with you.
       </Text>
       <View style={{ marginTop: 12 }}>
         <WobbleButton
@@ -377,127 +541,23 @@ function EmptyState({ onExplore }: { onExplore: () => void }) {
   );
 }
 
-function CardDetailModal({
-  card,
-  onClose,
-  onSeeImpact,
-  onOpenSpecies,
-  onContribute,
-  onDelete,
-}: {
-  card: LifeCard | null;
-  onClose: () => void;
-  onSeeImpact: (c: LifeCard) => void;
-  onOpenSpecies: (c: LifeCard) => void;
-  onContribute: () => void;
-  onDelete: (c: LifeCard) => void;
-}) {
-  if (!card) return null;
-  return (
-    <Modal
-      visible
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable onPress={() => {}}>
-          <View style={styles.modalCard}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalKicker}>your life card</Text>
-                <Pressable onPress={onClose} hitSlop={10}>
-                  <Feather name="x" size={22} color={PAINT.ink} />
-                </Pressable>
-              </View>
-
-              <View style={{ alignItems: "center", marginVertical: 4 }}>
-                <LifeCardView card={card} seed={card.taxonId} />
-              </View>
-
-              {/* Badge meanings */}
-              {card.badges.length > 0 && (
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>about the badges</Text>
-                  <View style={{ gap: 6, marginTop: 6 }}>
-                    {card.badges.map((b) => (
-                      <View key={b} style={styles.badgeMeaningRow}>
-                        <View
-                          style={[
-                            styles.badgeMeaningSwatch,
-                            { backgroundColor: BADGE_META[b].color },
-                          ]}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.badgeMeaningLabel}>
-                            {BADGE_META[b].label}
-                          </Text>
-                          <Text style={styles.badgeMeaningDesc}>
-                            {BADGE_META[b].description}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {/* Actions */}
-              <View style={styles.modalActions}>
-                <WobbleButton
-                  label="See Impact"
-                  onPress={() => onSeeImpact(card)}
-                  color={PAINT.sun}
-                  width={300}
-                  height={50}
-                  seed={6}
-                />
-                <View style={{ height: 8 }} />
-                <WobbleButton
-                  label="Open species page"
-                  onPress={() => onOpenSpecies(card)}
-                  color={PAINT.cream}
-                  width={300}
-                  height={44}
-                  seed={7}
-                />
-                <View style={{ height: 8 }} />
-                {card.level === 5 && (
-                  <>
-                    <WobbleButton
-                      label="Contribute on iNaturalist"
-                      onPress={onContribute}
-                      color={PAINT.grass}
-                      width={300}
-                      height={44}
-                      seed={8}
-                      leading={
-                        <Feather name="external-link" size={14} color={PAINT.ink} />
-                      }
-                    />
-                    <View style={{ height: 8 }} />
-                  </>
-                )}
-                <Pressable
-                  onPress={() => onDelete(card)}
-                  style={styles.removeBtn}
-                >
-                  <Feather name="trash-2" size={14} color={PAINT.red} />
-                  <Text style={styles.removeText}>remove from collection</Text>
-                </Pressable>
-              </View>
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PAINT.paper },
   scroll: { paddingHorizontal: 16 },
 
+  kicker: {
+    fontFamily: LABEL_FONT,
+    fontSize: 11,
+    color: "#888",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  headerRow: {
+    marginTop: 4,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
   title: {
     fontFamily: HAND_FONT,
     fontSize: 32,
@@ -505,20 +565,25 @@ const styles = StyleSheet.create({
     transform: [{ rotate: "-1deg" }],
     lineHeight: 36,
   },
-  subtitle: {
+  countBig: {
+    fontFamily: HAND_FONT,
+    fontSize: 26,
+    color: PAINT.grass,
+    lineHeight: 28,
+  },
+  countSub: {
     fontFamily: LABEL_FONT,
-    fontSize: 14,
-    color: PAINT.inkSoft,
-    marginTop: 6,
+    fontSize: 11,
+    color: "#7a6a4a",
   },
 
   searchWrap: {
-    marginTop: 16,
+    marginTop: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderWidth: 2,
     borderColor: PAINT.ink,
     backgroundColor: "white",
@@ -533,56 +598,105 @@ const styles = StyleSheet.create({
 
   chipsRow: {
     flexDirection: "row",
-    gap: 8,
     paddingVertical: 12,
   },
-  chipInner: {
-    flex: 1,
+  chipLabelWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: "center",
     justifyContent: "center",
   },
-  chipText: {
-    fontFamily: HAND_FONT,
-    fontSize: 16,
-    color: PAINT.ink,
+  chipLabel: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    fontWeight: "700",
   },
 
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+  hookContent: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    padding: 14,
   },
-  sectionTitle: {
+  hookHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  hookTitle: {
     fontFamily: HAND_FONT,
-    fontSize: 24,
+    fontSize: 18,
     color: PAINT.ink,
     transform: [{ rotate: "-0.5deg" }],
   },
-  sectionCount: {
-    backgroundColor: PAINT.cream,
-    borderWidth: 1.5,
-    borderColor: PAINT.ink,
-    paddingHorizontal: 8,
-    paddingVertical: 1,
-    borderRadius: 4,
+  hookDate: {
+    fontFamily: LABEL_FONT,
+    fontSize: 10,
+    color: "#7a6a4a",
+    letterSpacing: 1,
   },
-  sectionCountText: {
+  hookStats: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  hookStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  hookStatBig: {
     fontFamily: HAND_FONT,
     fontSize: 14,
     color: PAINT.ink,
+    lineHeight: 16,
   },
-  sectionCaption: {
+  hookStatSmall: {
+    fontFamily: LABEL_FONT,
+    fontSize: 10,
+  },
+
+  sectionHeader: {
+    marginTop: 28,
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "flex-end",
+  },
+  sectionTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    color: PAINT.ink,
+    transform: [{ rotate: "-0.5deg" }],
+    lineHeight: 24,
+  },
+  sectionSub: {
     fontFamily: LABEL_FONT,
     fontSize: 12,
-    color: PAINT.inkSoft,
+    color: "#7a6a4a",
     marginTop: 2,
   },
 
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginTop: 12,
+  },
+
+  newStampInner: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  newStampText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 11,
+    fontWeight: "700",
+    color: PAINT.paper,
+    letterSpacing: 1,
   },
 
   empty: {
@@ -616,104 +730,13 @@ const styles = StyleSheet.create({
 
   caveat: {
     marginTop: 32,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: PAINT.inkMute,
-    borderStyle: "dashed",
-    backgroundColor: PAINT.paperDeep + "55",
-  },
-  caveatLabel: {
-    fontFamily: HAND_FONT,
-    fontSize: 14,
-    color: PAINT.inkMute,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    paddingVertical: 20,
   },
   caveatText: {
     fontFamily: LABEL_FONT,
     fontSize: 11,
-    color: PAINT.inkSoft,
+    color: "#999",
+    textAlign: "center",
     lineHeight: 16,
-    marginTop: 4,
-  },
-
-  /* modal */
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(26,26,26,0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 380,
-    maxHeight: "90%",
-    backgroundColor: PAINT.paper,
-    borderWidth: 3,
-    borderColor: PAINT.ink,
-    padding: 16,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  modalKicker: {
-    fontFamily: HAND_FONT,
-    fontSize: 18,
-    color: PAINT.inkMute,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-  },
-  modalSection: {
-    marginTop: 14,
-    padding: 12,
-    backgroundColor: PAINT.cream,
-    borderWidth: 2,
-    borderColor: PAINT.ink,
-  },
-  modalSectionTitle: {
-    fontFamily: HAND_FONT,
-    fontSize: 18,
-    color: PAINT.ink,
-  },
-  badgeMeaningRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
-  badgeMeaningSwatch: {
-    width: 14,
-    height: 14,
-    borderWidth: 1.5,
-    borderColor: PAINT.ink,
-  },
-  badgeMeaningLabel: {
-    fontFamily: HAND_FONT,
-    fontSize: 16,
-    color: PAINT.ink,
-  },
-  badgeMeaningDesc: {
-    fontFamily: LABEL_FONT,
-    fontSize: 12,
-    color: PAINT.inkSoft,
-    lineHeight: 16,
-  },
-  modalActions: {
-    marginTop: 16,
-    alignItems: "center",
-  },
-  removeBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 8,
-  },
-  removeText: {
-    fontFamily: LABEL_FONT,
-    fontSize: 13,
-    color: PAINT.red,
   },
 });

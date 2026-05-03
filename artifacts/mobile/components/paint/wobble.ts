@@ -52,3 +52,22 @@ export function wobbleRect(
   });
   return d + " Z";
 }
+
+export function wobbleCircle(
+  cx: number,
+  cy: number,
+  r: number,
+  intensity = 1.5,
+  segments = 28,
+  seed = 1,
+): string {
+  let d = "";
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    const wob = Math.sin((seed + i) * 1.7) * intensity;
+    const x = cx + Math.cos(a) * (r + wob);
+    const y = cy + Math.sin(a) * (r + wob);
+    d += (i === 0 ? "M" : "L") + ` ${x.toFixed(1)} ${y.toFixed(1)} `;
+  }
+  return d + " Z";
+}

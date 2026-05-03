@@ -1,0 +1,388 @@
+```text
+Build a full “Life Cards” system for the React Native Expo app “Life Web”.
+
+Goal:
+Create a beautiful collectible species card system powered by iNaturalist data. Users should not “catch” animals like a game. They should earn cards by discovering, understanding, and taking action around real species near them.
+
+This feature should feel:
+- premium
+- meaningful
+- educational
+- emotional
+- visually collectible
+- connected to local biodiversity
+- not childish
+
+Use:
+- React Native Expo
+- iNaturalist API
+- AsyncStorage or SQLite
+- react-native-reanimated
+- expo-haptics
+- expo-location
+
+----------------------------------------
+CORE CONCEPT
+----------------------------------------
+
+Life Cards are collectible cards for real species found near the user.
+
+Each card is created from real iNaturalist data:
+- species photo
+- common name
+- scientific name
+- taxon ID
+- iconic taxon group
+- nearby observation count
+- last seen date
+- seasonal activity
+- conservation status if available
+- ecosystem role
+- local signal status
+- confidence score
+
+The user earns cards by interacting with real local biodiversity.
+
+Do NOT make this a battle game.
+Do NOT use coins, XP, or childish mechanics.
+This is about discovery, awareness, and action.
+
+----------------------------------------
+CARD UNLOCK METHODS
+----------------------------------------
+
+Implement 5 card unlock methods:
+
+1. Discovery Unlock
+Triggered when:
+- user taps a species marker on the map
+- species exists within selected radius from iNaturalist data
+
+Unlock message:
+“New species discovered near you.”
+
+2. New Activity Unlock
+Triggered when:
+- a species has a recent iNaturalist observation nearby
+- observed within last 7 days
+
+Unlock message:
+“New activity detected nearby.”
+
+3. Missing Species Unlock
+Triggered when:
+- species was historically observed in the area
+- but has not been observed recently compared with baseline
+
+Unlock message:
+“This species has not been seen recently.”
+
+4. Impact Unlock
+Triggered when:
+- user opens the species impact simulation
+- user finishes viewing the ecological chain
+
+Unlock message:
+“You understand this species’ role in your local life web.”
+
+5. Contribution Unlock
+Triggered when:
+- user uses the app to submit or link an observation
+- if direct iNaturalist upload is not implemented, create placeholder flow:
+  “Open iNaturalist to contribute observation”
+
+Unlock message:
+“You helped improve community science data.”
+
+----------------------------------------
+CARD PROGRESSION LEVELS
+----------------------------------------
+
+Each species card should have 5 meaningful progression states:
+
+Level 1: Seen
+- basic species image
+- name
+- group
+
+Level 2: Observed Nearby
+- local observation count
+- last seen date
+- map presence
+
+Level 3: Understood
+- ecosystem role
+- impact chain unlocked
+
+Level 4: Signal Detected
+- trend, missing status, seasonal shift, or local activity signal
+
+Level 5: Action Ready
+- report can be generated
+- civic/share action unlocked
+
+Progression should be visual:
+- subtle glow increases
+- card border becomes richer
+- new badges appear
+- card detail sections unlock gradually
+
+----------------------------------------
+CARD TYPES / RARITY
+----------------------------------------
+
+Assign each card one or more meaningful badges based on iNaturalist data and app analysis:
+
+Common
+- frequently observed nearby
+
+Rare
+- low nearby observation count
+
+Seasonal
+- appears strongly in certain months
+
+Missing
+- historically observed but not recently seen
+
+Keystone
+- important ecosystem role, such as pollinator, decomposer, predator, seed disperser, amphibian indicator
+
+Sensitive
+- conservation status or geoprivacy indicates sensitive species
+- never show precise location for sensitive species
+
+Badges should feel serious and elegant, not gamey.
+
+----------------------------------------
+LIFE CARD UI
+----------------------------------------
+
+Create a beautiful card component.
+
+Card front:
+- large species image from iNaturalist
+- common name
+- scientific name
+- ecosystem role
+- badge row
+- nearby observation count
+- last seen date
+- confidence score
+- progress level indicator
+
+Card back or expanded detail:
+- local timeline
+- seasonal activity
+- why this species matters
+- impact chain preview
+- data source note
+- “See Impact” button
+- “Generate Report” button when Action Ready is unlocked
+
+Visual style:
+- premium collectible card
+- dark environmental gradient
+- glowing border based on badge type
+- circular species image or full-bleed image header
+- clean typography
+- subtle texture/noise background
+- smooth flip or expand animation
+
+Animations:
+- card unlock animation with haptic feedback
+- card gently scales in
+- glow pulse on new card
+- badges appear one by one
+- card flip or expand animation using reanimated
+- collection grid items animate in with staggered fade/slide
+
+----------------------------------------
+COLLECTION SCREEN
+----------------------------------------
+
+Create a “Life Cards” tab/screen.
+
+Sections:
+1. “Your Local Collection”
+- cards unlocked near user
+
+2. “New Near You”
+- species recently observed nearby that can be unlocked
+
+3. “Missing Cards”
+- species historically seen but not recently observed
+
+4. “Keystone Species”
+- important ecosystem role cards
+
+5. “Sensitive Species”
+- show only generalized info, no exact map points
+
+Filters:
+- Birds
+- Insects
+- Plants
+- Mammals
+- Amphibians
+- Fungi
+- Missing
+- Keystone
+- Rare
+
+Search:
+- search by common or scientific name
+
+----------------------------------------
+DAILY HOOK
+----------------------------------------
+
+Create a daily card summary on Home:
+
+Title:
+“Today near you”
+
+Examples:
+- “2 new species active nearby”
+- “1 species has not been seen recently”
+- “Pollinators are showing lower activity this week”
+
+CTA:
+“View Life Cards”
+
+This should use iNaturalist recent observations and historical comparison.
+
+----------------------------------------
+INATURALIST API USAGE
+----------------------------------------
+
+Use iNaturalist deeply.
+
+Use:
+- /observations for nearby observations
+- /observations/species_counts for top local species
+- /observations/histogram for time trends
+- /taxa for species metadata/photos/taxonomy/conservation status
+- location/radius filters
+- date filters
+- quality_grade=research where appropriate
+
+Data rules:
+- recent activity = observations within last 7 days
+- historical baseline = same month over previous years where possible
+- missing signal = historically observed but low or no recent observations
+- confidence score based on:
+  - total observations
+  - number of unique observers if available
+  - research grade ratio
+  - date coverage
+  - season coverage
+
+Always show data caveat:
+“Based on community science observations. Missing observations do not always mean a species is absent.”
+
+----------------------------------------
+ECOSYSTEM ROLE LOGIC
+----------------------------------------
+
+Assign roles using:
+- iconic taxon
+- taxonomy keywords
+- known simple rule mapping
+
+Examples:
+- Bees, butterflies, moths -> Pollinator
+- Birds -> Predator / seed spreader depending on category
+- Frogs, salamanders -> Indicator species / insect control
+- Fungi -> Decomposer
+- Plants -> Habitat / food source
+- Mammals -> Predator / herbivore / seed spreader
+- Spiders -> Predator
+- Beetles -> Decomposer / pollinator depending group
+
+If unknown:
+role = “Part of local food web”
+
+----------------------------------------
+REPORT CONNECTION
+----------------------------------------
+
+When a card reaches Level 5 Action Ready:
+- show “Generate Report”
+- prefill report with:
+  - species name
+  - local observation summary
+  - missing/trend signal
+  - ecosystem role
+  - impact chain
+  - data caveats
+  - iNaturalist source links
+
+For Missing cards:
+- show CTA:
+“Create awareness report”
+
+For Sensitive species:
+- only generate generalized area-level report
+- never include precise location
+
+----------------------------------------
+SHAREABLE CARD
+----------------------------------------
+
+Add share card generation.
+
+Examples:
+- “I discovered [Species] in my local life web.”
+- “[Species] has not been seen recently near [Location].”
+- “If [Species] disappears, this local life web changes.”
+
+Share card should include:
+- species image
+- card badge
+- simple impact line
+- Life Web branding
+- location generalized to city/region
+
+----------------------------------------
+DATA STORAGE
+----------------------------------------
+
+Store locally:
+- unlockedCards
+- cardProgress
+- unlockDate
+- unlockMethod
+- speciesTaxonId
+- savedCardNotes
+- generatedReports linked to cards
+
+Use AsyncStorage or SQLite.
+
+----------------------------------------
+IMPORTANT UX RULES
+----------------------------------------
+
+- Make earning feel meaningful, not addictive in a cheap way.
+- Do not encourage users to disturb wildlife.
+- Add safety note when relevant:
+  “Observe respectfully. Do not disturb wildlife or enter restricted areas.”
+- Sensitive species must be protected.
+- Make cards beautiful enough that users want to share them.
+
+----------------------------------------
+FINAL OUTCOME
+----------------------------------------
+
+A user should be able to:
+1. open the app
+2. see real species near them
+3. unlock beautiful Life Cards
+4. understand each species’ role
+5. see if it may be missing or changing locally
+6. generate a responsible report
+7. share a beautiful card with others
+
+The product should feel like:
+“Collect the real life around you, then understand why it matters.”
+```

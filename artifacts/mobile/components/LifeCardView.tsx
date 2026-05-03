@@ -1,285 +1,356 @@
-import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Svg, {
+  Defs,
+  Path,
+  Pattern,
+  Rect,
+  G,
+  ClipPath,
+  Image as SvgImage,
+} from "react-native-svg";
 
 import {
   Bee,
   Bird,
   Flower,
+  Frog,
   HAND_FONT,
   LABEL_FONT,
   Mushroom,
   PAINT,
-  WobbleBox,
+  Sparkle,
+  wobble,
+  wobbleCircle,
+  wobbleRect,
 } from "@/components/paint";
 import {
   BADGE_META,
-  LEVEL_NAMES,
   type CardBadge,
   type LifeCard,
 } from "@/services/lifeCards";
+
+const CARD_W = 168;
+const CARD_H = 240;
+const ROLE_COLORS: Record<string, string> = {
+  Pollinator: PAINT.sun,
+  Decomposer: PAINT.purple,
+  Predator: PAINT.red,
+  "Seed disperser": PAINT.red,
+  "Seed spreader": PAINT.red,
+  Herbivore: PAINT.grassDeep,
+  "Indicator species": PAINT.grass,
+  "Habitat / food source": PAINT.purple,
+  Generalist: PAINT.inkMute,
+  "Part of local food web": PAINT.brown,
+};
 
 interface Props {
   card: LifeCard;
   size?: "compact" | "full";
   onPress?: () => void;
-  seed?: number;
+  focused?: boolean;
+  locked?: boolean;
+  /** Wobble seed offset; defaults derived from taxonId. */
+  seedOffset?: number;
 }
 
-export function LifeCardView({ card, size = "full", onPress, seed = 1 }: Props) {
-  if (size === "compact") {
-    return <CompactCard card={card} onPress={onPress} seed={seed} />;
-  }
-  return <FullCard card={card} onPress={onPress} seed={seed} />;
-}
-
-function FullCard({
+export function LifeCardView({
   card,
+  size = "compact",
   onPress,
-  seed,
-}: {
-  card: LifeCard;
-  onPress?: () => void;
-  seed: number;
-}) {
-  const accent = pickAccent(card.badges);
-  const showLocation = !card.isSensitive;
+  focused = false,
+  locked = false,
+  seedOffset = 0,
+}: Props) {
+  const scale = size === "full" ? 1.45 : 1;
+  const W = CARD_W * scale;
+  const H = CARD_H * scale;
+  const roleColor = ROLE_COLORS[card.role] ?? PAINT.brown;
+  const seed = (card.taxonId % 97) + seedOffset + 5;
+  const idStr = `c${card.taxonId}`;
 
   return (
     <Pressable onPress={onPress} disabled={!onPress}>
-      <WobbleBox
-        width={336}
-        height={460}
-        fill="white"
-        stroke={accent}
-        strokeWidth={3.5}
-        seed={seed}
-        padding={0}
-      >
-        <View style={styles.cardInner}>
-          {/* Photo */}
-          <View style={styles.photoWrap}>
-            {card.photoUrl ? (
-              <Image
-                source={{ uri: card.photoUrl }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
+      <View style={{ width: W, height: H, position: "relative" }}>
+        {focused && (
+          <Svg
+            width={W + 32}
+            height={H + 32}
+            style={{ position: "absolute", left: -16, top: -16 }}
+          >
+            <Path
+              d={wobbleRect(8, 8, W + 16, H + 16, 3, seed + 99)}
+              fill="none"
+              stroke={roleColor}
+              strokeWidth={3}
+              opacity={0.7}
+            />
+          </Svg>
+        )}
+        <Svg width={W} height={H} viewBox={`0 0 ${CARD_W} ${CARD_H}`}>
+          <Defs>
+            <Pattern
+              id={`pap-${idStr}`}
+              width={3}
+              height={3}
+              patternUnits="userSpaceOnUse"
+            >
+              <Rect width={3} height={3} fill={PAINT.paper} />
+              <Rect x={1} y={1} width={0.6} height={0.6} fill="rgba(180,140,100,0.18)" />
+            </Pattern>
+            <Pattern
+              id={`d-${idStr}`}
+              width={3}
+              height={3}
+              patternUnits="userSpaceOnUse"
+            >
+              <Rect width={3} height={3} fill="transparent" />
+              <Rect x={0} y={0} width={1.5} height={1.5} fill={roleColor} />
+            </Pattern>
+            <ClipPath id={`pc-${idStr}`}>
+              <Path d={wobbleCircle(84, 56, 30, 1, 28, seed + 9)} />
+            </ClipPath>
+          </Defs>
+
+          {/* Outer paper card */}
+          <Path
+            d={wobbleRect(3, 3, CARD_W - 6, CARD_H - 6, 1.6, seed)}
+            fill={`url(#pap-${idStr})`}
+            stroke={PAINT.ink}
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+          />
+          {/* Inner role-color border */}
+          <Path
+            d={wobbleRect(7, 7, CARD_W - 14, CARD_H - 14, 1.2, seed + 1)}
+            fill="none"
+            stroke={roleColor}
+            strokeWidth={1.5}
+            opacity={0.8}
+          />
+          {/* Corner crosses */}
+          {[
+            [12, 12],
+            [CARD_W - 12, 12],
+            [12, CARD_H - 12],
+            [CARD_W - 12, CARD_H - 12],
+          ].map(([x, y], i) => (
+            <G key={i}>
+              <Path
+                d={`M ${x - 4} ${y} L ${x + 4} ${y}`}
+                stroke={roleColor}
+                strokeWidth={1.5}
               />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, styles.photoFallback]}>
-                <FallbackCritter group={card.group} />
-              </View>
+              <Path
+                d={`M ${x} ${y - 4} L ${x} ${y + 4}`}
+                stroke={roleColor}
+                strokeWidth={1.5}
+              />
+            </G>
+          ))}
+
+          {/* Dithered halo */}
+          <Path
+            d={wobbleCircle(84, 56, 36, 1.2, 30, seed + 8)}
+            fill={`url(#d-${idStr})`}
+            opacity={0.5}
+          />
+          {/* Inner white portrait circle */}
+          <Path
+            d={wobbleCircle(84, 56, 30, 1, 28, seed + 9)}
+            fill="white"
+            stroke={PAINT.ink}
+            strokeWidth={2}
+          />
+          {/* Photo (clipped) */}
+          {!locked && card.photoUrl && (
+            <SvgImage
+              href={{ uri: card.photoUrl }}
+              x={54}
+              y={26}
+              width={60}
+              height={60}
+              preserveAspectRatio="xMidYMid slice"
+              clipPath={`url(#pc-${idStr})`}
+            />
+          )}
+        </Svg>
+
+        {/* Foreground content */}
+        <View style={[StyleSheet.absoluteFill, { padding: 12 * scale }]}>
+          {/* header — group + level */}
+          <View style={styles.headerRow}>
+            <Text style={styles.headerText}>{card.group}</Text>
+            <Text style={styles.headerText}>L{card.level}/5</Text>
+          </View>
+
+          {/* Portrait area — fallback critter when no photo */}
+          <View style={[styles.portraitArea, { height: 84 * scale }]}>
+            {!card.photoUrl && !locked && (
+              <FallbackCritter group={card.group} />
             )}
-            {card.isSensitive && (
-              <View style={styles.sensitiveOverlay}>
-                <Text style={styles.sensitiveText}>
-                  ✦ generalized location ✦
-                </Text>
+            {locked && (
+              <Text style={[styles.lockedQ, { fontSize: 48 * scale }]}>?</Text>
+            )}
+            {!locked && card.level >= 3 && (
+              <View style={styles.cornerSparkle}>
+                <Sparkle size={4} color={PAINT.sun} />
               </View>
             )}
           </View>
 
-          {/* Names */}
-          <View style={styles.namesRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.commonName} numberOfLines={1}>
-                {card.commonName || card.taxonName}
-              </Text>
-              <Text style={styles.sciName} numberOfLines={1}>
+          {/* name */}
+          <View style={{ alignItems: "center", marginTop: 2 }}>
+            <Text
+              style={[styles.name, { fontSize: 18 * scale }]}
+              numberOfLines={1}
+            >
+              {locked ? "—— ——" : card.commonName || card.taxonName}
+            </Text>
+            {!locked && (
+              <Text
+                style={[styles.sci, { fontSize: 10 * scale }]}
+                numberOfLines={1}
+              >
                 {card.taxonName}
               </Text>
-            </View>
-            <LevelDots level={card.level} />
-          </View>
-
-          {/* Badges */}
-          <View style={styles.badgeRow}>
-            {card.badges.length === 0 ? (
-              <View style={[styles.badge, { backgroundColor: PAINT.cream }]}>
-                <Text style={styles.badgeText}>seen</Text>
-              </View>
-            ) : (
-              card.badges.map((b) => <Badge key={b} kind={b} />)
             )}
           </View>
 
-          {/* Role + level label */}
-          <View style={styles.roleRow}>
-            <View style={styles.rolePill}>
-              <Feather name="git-branch" size={12} color={PAINT.ink} />
-              <Text style={styles.roleText}>{card.role}</Text>
-            </View>
-            <Text style={styles.levelLabel}>{LEVEL_NAMES[card.level]}</Text>
-          </View>
-
-          {/* Stats — gradually revealed */}
-          {card.level >= 2 && (
-            <View style={styles.statsRow}>
-              <Stat
-                label="nearby"
-                value={String(card.nearbyCount)}
-                color={PAINT.grassDeep}
-              />
-              {showLocation && (
-                <Stat
-                  label="last seen"
-                  value={
-                    card.lastSeenDate
-                      ? formatRelative(card.lastSeenDate)
-                      : "—"
-                  }
-                  color={PAINT.blue}
-                />
-              )}
-              <Stat
-                label="confidence"
-                value={`${card.confidence}%`}
-                color={PAINT.orange}
-              />
-            </View>
-          )}
-
-          {/* Signal/impact strip */}
-          {card.level >= 3 && (
-            <View style={styles.signalStrip}>
-              <Text style={styles.signalText} numberOfLines={2}>
-                {signalLine(card)}
+          {/* role pill */}
+          <View style={{ alignItems: "center", marginTop: 6 }}>
+            <View
+              style={[
+                styles.rolePill,
+                {
+                  borderColor: roleColor,
+                  backgroundColor: roleColor + "2e",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.roleText,
+                  { color: roleColor, fontSize: 11 * scale },
+                ]}
+                numberOfLines={1}
+              >
+                {locked ? "??? role" : card.role}
               </Text>
             </View>
-          )}
-
-          {/* Bottom hint */}
-          <View style={styles.bottomHint}>
-            <Text style={styles.bottomHintText}>
-              {card.level === 5
-                ? "tap to take action →"
-                : card.level >= 3
-                ? "tap to read more →"
-                : "tap to keep exploring →"}
-            </Text>
           </View>
-        </View>
-      </WobbleBox>
-    </Pressable>
-  );
-}
 
-function CompactCard({
-  card,
-  onPress,
-  seed,
-}: {
-  card: LifeCard;
-  onPress?: () => void;
-  seed: number;
-}) {
-  const accent = pickAccent(card.badges);
-  return (
-    <Pressable onPress={onPress} disabled={!onPress} style={{ marginBottom: 8 }}>
-      <WobbleBox
-        width={164}
-        height={210}
-        fill="white"
-        stroke={accent}
-        strokeWidth={3}
-        seed={seed}
-        padding={0}
-      >
-        <View style={styles.compactInner}>
-          <View style={styles.compactPhoto}>
-            {card.photoUrl ? (
-              <Image
-                source={{ uri: card.photoUrl }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
+          {/* progress dots */}
+          <View style={styles.dotsRow}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  {
+                    width: 10 * scale,
+                    height: 10 * scale,
+                    borderRadius: 5 * scale,
+                    backgroundColor:
+                      i <= card.level ? roleColor : "transparent",
+                  },
+                ]}
               />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, styles.photoFallback]}>
-                <FallbackCritter group={card.group} />
-              </View>
-            )}
+            ))}
           </View>
-          <View style={{ padding: 8, flex: 1 }}>
-            <Text style={styles.compactName} numberOfLines={1}>
-              {card.commonName || card.taxonName}
-            </Text>
-            <Text style={styles.compactSci} numberOfLines={1}>
-              {card.taxonName}
-            </Text>
-            <View style={styles.compactBadgeRow}>
-              {card.badges.slice(0, 2).map((b) => (
-                <View
-                  key={b}
-                  style={[
-                    styles.miniBadge,
-                    { backgroundColor: BADGE_META[b].color + "55" },
-                  ]}
-                >
-                  <Text style={styles.miniBadgeText}>
-                    {BADGE_META[b].label.toLowerCase()}
-                  </Text>
-                </View>
+
+          {/* footer stats */}
+          <View style={styles.footer}>
+            <View>
+              <Text
+                style={[
+                  styles.statBig,
+                  { color: roleColor, fontSize: 16 * scale },
+                ]}
+              >
+                {locked ? "?" : card.nearbyCount}
+              </Text>
+              <Text style={styles.statSmall}>nearby</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text
+                style={[
+                  styles.statBigDark,
+                  { fontSize: 12 * scale },
+                ]}
+                numberOfLines={1}
+              >
+                {locked ? "—" : formatRelative(card.lastSeenDate)}
+              </Text>
+              <Text style={styles.statSmall}>last seen</Text>
+            </View>
+          </View>
+
+          {/* badges floating top-right */}
+          {!locked && card.badges.length > 0 && (
+            <View style={styles.stampStack}>
+              {card.badges.slice(0, 2).map((b, i) => (
+                <PaperStamp key={b} kind={b} idx={i} small={size === "compact"} />
               ))}
             </View>
-            <View style={styles.compactFooter}>
-              <LevelDots level={card.level} small />
-              <Text style={styles.compactCount}>{card.nearbyCount}×</Text>
-            </View>
-          </View>
+          )}
         </View>
-      </WobbleBox>
+      </View>
     </Pressable>
   );
 }
 
-function Badge({ kind }: { kind: CardBadge }) {
-  const meta = BADGE_META[kind];
-  return (
-    <View style={[styles.badge, { backgroundColor: meta.color + "55", borderColor: meta.color }]}>
-      <Text style={styles.badgeText}>{meta.label.toLowerCase()}</Text>
-    </View>
-  );
-}
-
-function LevelDots({ level, small }: { level: number; small?: boolean }) {
-  const size = small ? 6 : 9;
-  return (
-    <View style={{ flexDirection: "row", gap: small ? 3 : 4 }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <View
-          key={i}
-          style={{
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            borderWidth: 1.5,
-            borderColor: PAINT.ink,
-            backgroundColor: i <= level ? PAINT.sun : "white",
-          }}
-        />
-      ))}
-    </View>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  color,
+/* ===== Paper stamp badge ===== */
+export function PaperStamp({
+  kind,
+  idx = 0,
+  small = false,
 }: {
-  label: string;
-  value: string;
-  color: string;
+  kind: CardBadge;
+  idx?: number;
+  small?: boolean;
 }) {
+  const meta = BADGE_META[kind];
+  const sym: Record<CardBadge, string> = {
+    common: "●",
+    rare: "✦",
+    seasonal: "❋",
+    missing: "?",
+    keystone: "✶",
+    sensitive: "◐",
+  };
+  const w = small ? 60 : 78;
+  const h = small ? 22 : 26;
+  const fs = small ? 10 : 11;
+  const rot = idx % 2 === 0 ? -2 : 2;
   return (
-    <View style={styles.stat}>
-      <Text style={[styles.statValue, { color }]} numberOfLines={1}>
-        {value}
-      </Text>
-      <Text style={styles.statLabel} numberOfLines={1}>
-        {label}
-      </Text>
+    <View style={{ width: w, height: h, transform: [{ rotate: `${rot}deg` }] }}>
+      <Svg width={w} height={h}>
+        <Path
+          d={wobbleRect(2, 2, w - 4, h - 4, 0.8, idx + 33)}
+          fill="white"
+          stroke={meta.color}
+          strokeWidth={1.5}
+        />
+        <Path
+          d={wobbleRect(4, 4, w - 8, h - 8, 0.6, idx + 34)}
+          fill="none"
+          stroke={meta.color}
+          strokeWidth={0.8}
+          strokeDasharray="2 2"
+          opacity={0.6}
+        />
+      </Svg>
+      <View style={[StyleSheet.absoluteFill, styles.stampInner]}>
+        <Text style={[styles.stampSym, { color: meta.color, fontSize: fs + 2 }]}>
+          {sym[kind]}
+        </Text>
+        <Text style={[styles.stampLabel, { color: meta.color, fontSize: fs }]}>
+          {meta.label.toUpperCase()}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -288,32 +359,12 @@ function FallbackCritter({ group }: { group: string }) {
   if (group === "Birds") return <Bird size={56} />;
   if (group === "Plants") return <Flower size={56} petal={PAINT.pink} />;
   if (group === "Fungi") return <Mushroom size={56} />;
+  if (group === "Amphibians") return <Frog size={56} />;
   return <Bee size={56} />;
 }
 
-function pickAccent(badges: CardBadge[]): string {
-  if (badges.includes("missing")) return PAINT.red;
-  if (badges.includes("keystone")) return PAINT.sun;
-  if (badges.includes("rare")) return PAINT.purple;
-  if (badges.includes("sensitive")) return PAINT.blue;
-  if (badges.includes("seasonal")) return PAINT.orange;
-  if (badges.includes("common")) return PAINT.grassDeep;
-  return PAINT.ink;
-}
-
-function signalLine(card: LifeCard): string {
-  if (card.signalFlags.isMissing)
-    return "This species was historically observed here but hasn't been seen recently.";
-  if (card.signalFlags.isNewActivity)
-    return "Fresh sightings this week — community scientists are spotting it now.";
-  if (card.badges.includes("keystone"))
-    return `As a ${card.role.toLowerCase()}, this species shapes the local food web.`;
-  if (card.badges.includes("rare"))
-    return "Few nearby observations — every sighting helps build the picture.";
-  return "Part of the local life web around you.";
-}
-
-function formatRelative(iso: string): string {
+function formatRelative(iso?: string): string {
+  if (!iso) return "—";
   const d = new Date(iso);
   const t = d.getTime();
   if (Number.isNaN(t)) return "—";
@@ -327,193 +378,110 @@ function formatRelative(iso: string): string {
   return `${Math.floor(days / 365)}y ago`;
 }
 
+// Re-export wobble helpers used by callers
+export { wobble, wobbleRect, wobbleCircle };
+
 const styles = StyleSheet.create({
-  cardInner: { flex: 1, padding: 14, gap: 10 },
-  photoWrap: {
-    height: 170,
-    borderWidth: 2.5,
-    borderColor: PAINT.ink,
-    backgroundColor: PAINT.cream,
-    overflow: "hidden",
-    position: "relative",
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
-  photoFallback: {
+  headerText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 9,
+    color: "#7a6a4a",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  portraitArea: {
+    marginTop: 4,
+    position: "relative",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: PAINT.sun + "55",
   },
-  sensitiveOverlay: {
+  lockedQ: {
+    fontFamily: HAND_FONT,
+    color: "#666",
+  },
+  cornerSparkle: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: PAINT.blue + "cc",
-    paddingVertical: 4,
+    top: 8,
+    right: 22,
   },
-  sensitiveText: {
+  name: {
     fontFamily: HAND_FONT,
-    fontSize: 12,
-    color: "white",
+    color: PAINT.ink,
+    lineHeight: 20,
     textAlign: "center",
-    letterSpacing: 0.6,
   },
-  namesRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  commonName: {
-    fontFamily: HAND_FONT,
-    fontSize: 24,
-    color: PAINT.ink,
-    lineHeight: 26,
-  },
-  sciName: {
+  sci: {
     fontFamily: LABEL_FONT,
-    fontSize: 13,
-    color: PAINT.inkSoft,
+    color: "#7a6a4a",
     fontStyle: "italic",
-  },
-  badgeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  badge: {
-    borderWidth: 1.5,
-    borderColor: PAINT.ink,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  badgeText: {
-    fontFamily: HAND_FONT,
-    fontSize: 13,
-    color: PAINT.ink,
-    letterSpacing: 0.4,
-  },
-  roleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    marginTop: 1,
+    textAlign: "center",
   },
   rolePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: PAINT.cream,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
     borderWidth: 1.5,
-    borderColor: PAINT.ink,
-    borderRadius: 4,
+    borderRadius: 3,
   },
   roleText: {
     fontFamily: LABEL_FONT,
-    fontSize: 12,
-    color: PAINT.ink,
+    fontWeight: "700",
   },
-  levelLabel: {
-    fontFamily: HAND_FONT,
-    fontSize: 16,
-    color: PAINT.inkMute,
-  },
-  statsRow: {
+  dotsRow: {
+    marginTop: 8,
     flexDirection: "row",
-    gap: 8,
-    marginTop: 2,
-  },
-  stat: {
-    flex: 1,
-    borderWidth: 2,
-    borderColor: PAINT.ink,
-    backgroundColor: "white",
-    padding: 6,
-    alignItems: "center",
-  },
-  statValue: {
-    fontFamily: HAND_FONT,
-    fontSize: 18,
-    lineHeight: 20,
-  },
-  statLabel: {
-    fontFamily: LABEL_FONT,
-    fontSize: 10,
-    color: PAINT.inkSoft,
-    marginTop: 2,
-  },
-  signalStrip: {
-    backgroundColor: PAINT.cream,
-    borderWidth: 1.5,
-    borderColor: PAINT.ink,
-    borderStyle: "dashed",
-    padding: 8,
-  },
-  signalText: {
-    fontFamily: LABEL_FONT,
-    fontSize: 12,
-    color: PAINT.ink,
-    lineHeight: 16,
-  },
-  bottomHint: {
-    alignItems: "flex-end",
-    marginTop: "auto",
-  },
-  bottomHintText: {
-    fontFamily: HAND_FONT,
-    fontSize: 14,
-    color: PAINT.inkMute,
-  },
-
-  /* compact */
-  compactInner: { flex: 1 },
-  compactPhoto: {
-    height: 100,
-    borderBottomWidth: 2,
-    borderColor: PAINT.ink,
-    backgroundColor: PAINT.cream,
-    overflow: "hidden",
-  },
-  compactName: {
-    fontFamily: HAND_FONT,
-    fontSize: 17,
-    color: PAINT.ink,
-    lineHeight: 19,
-  },
-  compactSci: {
-    fontFamily: LABEL_FONT,
-    fontSize: 10,
-    color: PAINT.inkSoft,
-    fontStyle: "italic",
-  },
-  compactBadgeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    justifyContent: "center",
     gap: 4,
-    marginTop: 4,
   },
-  miniBadge: {
-    borderWidth: 1,
+  dot: {
+    borderWidth: 1.2,
     borderColor: PAINT.ink,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 3,
   },
-  miniBadgeText: {
+  footer: {
+    marginTop: "auto",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 2,
+  },
+  statBig: {
     fontFamily: HAND_FONT,
-    fontSize: 11,
-    color: PAINT.ink,
+    lineHeight: 18,
   },
-  compactFooter: {
+  statBigDark: {
+    fontFamily: HAND_FONT,
+    color: PAINT.ink,
+    lineHeight: 14,
+  },
+  statSmall: {
+    fontFamily: LABEL_FONT,
+    fontSize: 9,
+    color: "#7a6a4a",
+    marginTop: 1,
+  },
+  stampStack: {
+    position: "absolute",
+    top: -4,
+    right: -2,
+    gap: 4,
+  },
+  stampInner: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: "auto",
-    paddingTop: 4,
+    justifyContent: "center",
+    gap: 4,
   },
-  compactCount: {
-    fontFamily: HAND_FONT,
-    fontSize: 14,
-    color: PAINT.grassDeep,
+  stampSym: {
+    fontFamily: LABEL_FONT,
+    fontWeight: "700",
+  },
+  stampLabel: {
+    fontFamily: LABEL_FONT,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
 });
