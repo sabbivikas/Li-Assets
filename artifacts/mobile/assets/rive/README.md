@@ -143,7 +143,68 @@ shadow rather than relying on the host card.
 ## Dev build requirement
 
 `rive-react-native` is a native module. It does **not** load in
-Expo Go. Run the app via an Expo development build (`eas build
---profile development` or `npx expo run:ios|android`) to see the
-Rive scenes. In Expo Go the wrapper falls back to the existing
-RN-Animated visuals.
+Expo Go. Run the app via an Expo development build to see the
+Rive scenes once they exist. In Expo Go (and on the Replit
+preview today) the wrapper falls back to the existing RN-Animated
+visuals.
+
+### One-time setup
+
+The pieces are already in place:
+
+- `eas.json` defines a `development` profile with
+  `developmentClient: true`, internal distribution, real-device
+  builds (iOS IPA, Android APK).
+- `expo-dev-client` is in `dependencies` so the dev menu and
+  custom dev launcher are bundled.
+- `rive-react-native@^9.8.3` is in `dependencies` so the native
+  Rive runtime is linked.
+
+Before the first build (one-time, requires your Expo account):
+
+```sh
+# from the repo root
+pnpm --filter @workspace/mobile dlx eas-cli login
+pnpm --filter @workspace/mobile dlx eas-cli init   # links app.json to an EAS project
+```
+
+`eas init` writes `expo.extra.eas.projectId` into `app.json`.
+Commit that change.
+
+### Building the dev client
+
+iOS (real device, ad-hoc / internal distribution):
+
+```sh
+pnpm --filter @workspace/mobile dlx eas-cli build \
+  --profile development --platform ios
+```
+
+Android (APK):
+
+```sh
+pnpm --filter @workspace/mobile dlx eas-cli build \
+  --profile development --platform android
+```
+
+The CLI prints an install URL when each build finishes (~10–25
+min on EAS Free). Internal testers open that URL on their device
+and install the dev client. Once installed they scan the QR code
+printed by `pnpm --filter @workspace/mobile run dev` to load the
+JS bundle into the dev client — and the Rive scenes light up.
+
+### Local native build (faster iteration)
+
+If you have Xcode / Android Studio set up locally you can skip
+the EAS round-trip and run the dev client directly:
+
+```sh
+pnpm --filter @workspace/mobile exec expo run:ios
+pnpm --filter @workspace/mobile exec expo run:android
+```
+
+### Production / preview
+
+`eas.json` also defines `preview` (internal APK) and `production`
+(autoincrement, store-ready) profiles. Use those once Rive scenes
+are themed and the dev client passes QA.
