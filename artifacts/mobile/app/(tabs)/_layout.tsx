@@ -1,43 +1,10 @@
 import { useAuth } from "@clerk/expo";
 import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Redirect, Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
-
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "globe.americas", selected: "globe.americas.fill" }} />
-        <Label>Home</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="species">
-        <Icon sf={{ default: "leaf", selected: "leaf.fill" }} />
-        <Label>Species</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="signals">
-        <Icon sf={{ default: "waveform", selected: "waveform" }} />
-        <Label>Signals</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="cards">
-        <Icon sf={{ default: "rectangle.stack", selected: "rectangle.stack.fill" }} />
-        <Label>Cards</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="reports">
-        <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
-        <Label>Reports</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person.crop.circle", selected: "person.crop.circle.fill" }} />
-        <Label>Profile</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
 
 function ClassicTabLayout() {
   const isIOS = Platform.OS === "ios";
@@ -152,8 +119,5 @@ export default function TabLayout() {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
   return <ClassicTabLayout />;
 }
