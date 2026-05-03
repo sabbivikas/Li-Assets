@@ -5,6 +5,18 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { RiveEmptyState } from "@/components/RiveEmptyState";
 import { RiveLocationPin } from "@/components/RiveLocationPin";
 
+/**
+ * Maximum number of fully-rendered photo pins on the map at once.
+ * Anything beyond this is added as an invisible cluster-only member so
+ * the cluster count stays accurate without paying the per-pin DOM cost.
+ * Single source of truth — mirrored into the iframe script as
+ * `VISIBLE_CAP` and used by callers when slicing their pin pool.
+ */
+export const MAX_VISIBLE_PINS = 30;
+
+/** Upper bound on the pin pool we ship to the map (visible + overflow). */
+export const MAX_PIN_POOL = 100;
+
 interface UserPinPosition {
   x: number;
   y: number;
@@ -58,15 +70,7 @@ function buildLeafletHtml(
   lat: number,
   lng: number,
   radiusKm: number,
-  pins: SpeciesPin[],
 ): string {
-  // Escape angle brackets and JS line separators so untrusted pin name /
-  // scientificName values cannot break out of the inline <script> tag.
-  const pinsJson = JSON.stringify(pins)
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -258,7 +262,6 @@ function buildLeafletHtml(
   var lat = ${lat};
   var lng = ${lng};
   var radiusKm = ${radiusKm};
-  var pins = ${pinsJson};
 
   var map = L.map('map', {
     center: [lat, lng],
@@ -332,22 +335,6 @@ function buildLeafletHtml(
     })[c]);
   }
 
-  // Cluster group — collapses overlapping markers into a counted bubble
-  const cluster = L.markerClusterGroup({
-    showCoverageOnHover: false,
-    maxClusterRadius: 42,
-    spiderfyOnMaxZoom: true,
-    iconCreateFunction: (c) => {
-      const count = c.getChildCount();
-      const sizeClass = count >= 10 ? ' marker-cluster-custom-lg' : '';
-      return L.divIcon({
-        html: '<div><span>' + count + '</span></div>',
-        className: 'marker-cluster-custom' + sizeClass,
-        iconSize: L.point(44, 44),
-      });
-    },
-  });
-
   // Conservatively encode any photo URL before injecting into HTML/CSS.
   // Allows only http(s) URLs; fully encodes special characters.
   function safeUrl(u) {
@@ -396,6 +383,8 @@ function buildLeafletHtml(
     }
   });
 
+  // Single photo-stack cluster layer; rebuilt in place on pin updates
+  // so the user's pan/zoom state is preserved across data refreshes.
   var cluster = L.markerClusterGroup({
     showCoverageOnHover: false,
     maxClusterRadius: 52,
@@ -421,12 +410,14 @@ function buildLeafletHtml(
       });
     },
   });
+  map.addLayer(cluster);
 
-  var VISIBLE_CAP = 30;
-  pins.forEach(function(p, idx) {
+  // Mirrors MAX_VISIBLE_PINS in LocationMap.tsx.
+  var VISIBLE_CAP = ${MAX_VISIBLE_PINS};
+
+  function buildMarker(p, idx) {
     var url = safeUrl(p.photoUrl);
-    if (!url) return;
-    var marker;
+    if (!url) return null;
     if (idx < VISIBLE_CAP) {
       var ring = p.color || '#FBBF24';
       var imp = Math.max(0, Math.min(1, typeof p.importance === 'number' ? p.importance : 0.4));
@@ -440,7 +431,7 @@ function buildLeafletHtml(
             '<img loading="lazy" decoding="async" src="' + url + '" alt="" />' +
           '</div>' +
         '</div>';
-      marker = L.marker([p.lat, p.lng], {
+      var marker = L.marker([p.lat, p.lng], {
         icon: L.divIcon({
           className: 'species-pin-wrap',
           html: html,
@@ -461,24 +452,55 @@ function buildLeafletHtml(
         }
         postPinTap(p);
       });
-    } else {
-      marker = L.marker([p.lat, p.lng], {
-        icon: L.divIcon({ className: 'overflow-pin', html: '', iconSize: [1, 1] }),
-        _photoUrl: url,
-        opacity: 0,
-        interactive: false,
-        keyboard: false,
-      });
+      return marker;
     }
-    cluster.addLayer(marker);
+    return L.marker([p.lat, p.lng], {
+      icon: L.divIcon({ className: 'overflow-pin', html: '', iconSize: [1, 1] }),
+      _photoUrl: url,
+      opacity: 0,
+      interactive: false,
+      keyboard: false,
+    });
+  }
+
+  // Replace marker set in place; never recreates the map or tile layer
+  // so pan/zoom/animation state survives data updates.
+  window.__renderPins = function(nextPins) {
+    setSelected(null);
+    cluster.clearLayers();
+    if (!Array.isArray(nextPins)) return;
+    for (var i = 0; i < nextPins.length; i++) {
+      var m = buildMarker(nextPins[i], i);
+      if (m) cluster.addLayer(m);
+    }
+  };
+
+  // Parent posts pin updates here whenever data changes.
+  window.addEventListener('message', function(e) {
+    if (!e || !e.data) return;
+    if (e.data.type === 'set-pins' && Array.isArray(e.data.pins)) {
+      window.__renderPins(e.data.pins);
+    }
   });
-  map.addLayer(cluster);
+
+  function postReady() {
+    var msg = JSON.stringify({ type: 'mapReady' });
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(msg);
+    } else if (window.parent && window.parent !== window) {
+      window.parent.postMessage(msg, '*');
+    }
+  }
 
   map.on('click', function() { setSelected(null); });
 
-  // Fit map to circle bounds
+  // Fit map to circle bounds on first load only — pin updates must NOT
+  // re-fit, or the user's pan/zoom would be wiped on every refresh.
   var bounds = L.latLng(lat, lng).toBounds(radiusKm * 2200);
   map.fitBounds(bounds, { padding: [16, 16] });
+
+  postReady();
+  setTimeout(postReady, 80);
 })();
 </script>
 </body>
@@ -487,14 +509,39 @@ function buildLeafletHtml(
 
 const PIN_SIZE = 64;
 
-function parseUserPinMessage(raw: string): UserPinPosition | null {
-  try {
-    const m = JSON.parse(raw);
-    if (m && m.type === "userPin" && typeof m.x === "number" && typeof m.y === "number") {
-      return { x: m.x, y: m.y, visible: m.visible !== false };
+type ParsedMessage =
+  | { kind: "userPin"; pos: UserPinPosition }
+  | { kind: "mapReady" }
+  | { kind: "pinTap"; pin: PinTapPayload }
+  | null;
+
+interface RawMapMessage {
+  type?: string;
+  x?: number;
+  y?: number;
+  visible?: boolean;
+  pin?: PinTapPayload;
+  source?: string;
+}
+
+function parseMapMessage(raw: unknown): ParsedMessage {
+  let m: RawMapMessage | null = null;
+  if (typeof raw === "string") {
+    try {
+      m = JSON.parse(raw) as RawMapMessage;
+    } catch {
+      return null;
     }
-  } catch {
-    /* not JSON or not our message */
+  } else if (raw && typeof raw === "object") {
+    m = raw as RawMapMessage;
+  }
+  if (!m || typeof m.type !== "string") return null;
+  if (m.type === "userPin" && typeof m.x === "number" && typeof m.y === "number") {
+    return { kind: "userPin", pos: { x: m.x, y: m.y, visible: m.visible !== false } };
+  }
+  if (m.type === "mapReady") return { kind: "mapReady" };
+  if (m.type === "pin-tap" && m.source === "lifeweb-map" && m.pin && typeof m.pin.id === "number") {
+    return { kind: "pinTap", pin: m.pin };
   }
   return null;
 }
@@ -513,9 +560,12 @@ export function LocationMap({
     const id = setTimeout(() => setDebouncedPins(pins), 250);
     return () => clearTimeout(id);
   }, [pins]);
+
+  // HTML depends only on lat/lng/radius — never on pins. Pins are
+  // streamed in via postMessage so refreshes preserve user pan/zoom.
   const html = useMemo(
-    () => buildLeafletHtml(lat, lng, radiusKm, debouncedPins),
-    [lat, lng, radiusKm, debouncedPins],
+    () => buildLeafletHtml(lat, lng, radiusKm),
+    [lat, lng, radiusKm],
   );
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -525,40 +575,43 @@ export function LocationMap({
     onPinSelectRef.current = onPinSelect;
   }, [onPinSelect]);
 
-  // Reset the projected pin position whenever the map source changes so
-  // we don't briefly show the old position over the new map.
+  // Reset projected pin + ready flag whenever the map source changes.
   const [pinPos, setPinPos] = useState<UserPinPosition | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   useLayoutEffect(() => {
     setPinPos(null);
+    setMapReady(false);
   }, [html]);
+
+  // Push pins to the map whenever data changes (after it signals ready).
+  useEffect(() => {
+    if (!mapReady) return;
+    if (Platform.OS === "web") {
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "set-pins", pins: debouncedPins },
+        "*",
+      );
+    } else {
+      const json = JSON.stringify(JSON.stringify(debouncedPins));
+      webviewRef.current?.injectJavaScript(
+        `window.__renderPins && window.__renderPins(JSON.parse(${json})); true;`,
+      );
+    }
+  }, [mapReady, debouncedPins]);
+
+  const handleParsed = (parsed: ParsedMessage) => {
+    if (!parsed) return;
+    if (parsed.kind === "userPin") setPinPos(parsed.pos);
+    else if (parsed.kind === "mapReady") setMapReady(true);
+    else if (parsed.kind === "pinTap") onPinSelectRef.current?.(parsed.pin);
+  };
 
   // Web: receive postMessage from the iframe.
   useEffect(() => {
     if (Platform.OS !== "web") return;
     function handler(e: MessageEvent) {
       if (e.source !== iframeRef.current?.contentWindow) return;
-
-      // Handle userPin position message
-      if (typeof e.data === "string") {
-        const next = parseUserPinMessage(e.data);
-        if (next) {
-          setPinPos(next);
-          return;
-        }
-      }
-
-      // Handle pin-tap message
-      const data = e.data;
-      if (
-        data &&
-        typeof data === "object" &&
-        data.type === "pin-tap" &&
-        data.source === "lifeweb-map" &&
-        data.pin &&
-        typeof data.pin.id === "number"
-      ) {
-        onPinSelectRef.current?.(data.pin);
-      }
+      handleParsed(parseMapMessage(e.data));
     }
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -576,17 +629,7 @@ export function LocationMap({
   }, [selectedPinId]);
 
   const onWebViewMessage = (e: WebViewMessageEvent) => {
-    const next = parseUserPinMessage(e.nativeEvent.data);
-    if (next) {
-      setPinPos(next);
-      return;
-    }
-    try {
-      const data = JSON.parse(e.nativeEvent.data);
-      if (data?.type === "pin-tap" && data.pin) {
-        onPinSelectRef.current?.(data.pin);
-      }
-    } catch {}
+    handleParsed(parseMapMessage(e.nativeEvent.data));
   };
 
   const pinOverlay =

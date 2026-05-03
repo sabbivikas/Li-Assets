@@ -37,20 +37,71 @@ export interface HistogramResult {
   results: { [date: string]: number };
 }
 
-async function get<T>(path: string, params: Record<string, string | number | boolean> = {}): Promise<T> {
+export class INatNetworkError extends Error {
+  status?: number;
+  attempts: number;
+  cause?: unknown;
+  constructor(message: string, opts: { status?: number; attempts: number; cause?: unknown }) {
+    super(message);
+    this.name = "INatNetworkError";
+    this.status = opts.status;
+    this.attempts = opts.attempts;
+    this.cause = opts.cause;
+  }
+}
+
+const REQUEST_TIMEOUT_MS = 8000;
+const MAX_RETRIES = 2;
+const BASE_BACKOFF_MS = 500;
+
+async function get<T>(
+  path: string,
+  params: Record<string, string | number | boolean> = {},
+): Promise<T> {
   const query = new URLSearchParams(
     Object.fromEntries(
       Object.entries(params)
         .filter(([, v]) => v !== undefined && v !== null && v !== "")
-        .map(([k, v]) => [k, String(v)])
-    )
+        .map(([k, v]) => [k, String(v)]),
+    ),
   ).toString();
   const url = `${BASE_URL}${path}${query ? "?" + query : ""}`;
   const headers: Record<string, string> = { Accept: "application/json" };
   if (API_TOKEN) headers.Authorization = `Bearer ${API_TOKEN}`;
-  const resp = await fetch(url, { headers });
-  if (!resp.ok) throw new Error(`iNat API error: ${resp.status}`);
-  return resp.json();
+
+  let lastErr: unknown;
+  let lastStatus: number | undefined;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const resp = await fetch(url, { headers, signal: ctrl.signal });
+      clearTimeout(timer);
+      if (resp.ok) return (await resp.json()) as T;
+      lastStatus = resp.status;
+      // 4xx (except 408/429) are not transient — fail immediately.
+      if (resp.status >= 400 && resp.status < 500 && resp.status !== 408 && resp.status !== 429) {
+        throw new INatNetworkError(`iNat API error: ${resp.status}`, {
+          status: resp.status,
+          attempts: attempt + 1,
+        });
+      }
+      lastErr = new Error(`iNat API error: ${resp.status}`);
+    } catch (err) {
+      clearTimeout(timer);
+      if (err instanceof INatNetworkError) throw err;
+      lastErr = err;
+    }
+    if (attempt < MAX_RETRIES) {
+      const delay =
+        BASE_BACKOFF_MS * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new INatNetworkError(
+    lastStatus ? `iNat API error: ${lastStatus}` : "iNat API unreachable",
+    { status: lastStatus, attempts: MAX_RETRIES + 1, cause: lastErr },
+  );
 }
 
 export async function fetchNearbySpecies(

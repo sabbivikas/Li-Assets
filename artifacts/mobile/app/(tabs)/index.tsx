@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EarthGlobeRive } from "@/components/EarthGlobeRive";
-import { LocationMap, type SpeciesPin } from "@/components/LocationMap";
+import { LocationMap, MAX_PIN_POOL, type SpeciesPin } from "@/components/LocationMap";
 import { LoadingShimmer, SpeciesCardSkeleton } from "@/components/LoadingShimmer";
 import { RiveEmptyState } from "@/components/RiveEmptyState";
 import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
@@ -92,13 +92,21 @@ export default function HomeScreen() {
     enabled: !!lat && !!lng,
   });
 
-  const { data: observations } = useQuery({
+  const {
+    data: observations,
+    isError: observationsError,
+    refetch: refetchObservations,
+    isRefetching: refetchingObservations,
+  } = useQuery({
     queryKey: ["recent-observations", lat, lng, radius],
     queryFn: () =>
       withCache(`obs-${lat}-${lng}-${radius}`, () =>
         fetchRecentObservations(lat!, lng!, radius),
       ),
     enabled: permissionGranted && !!lat && !!lng,
+    // The iNaturalist client already retries with exponential backoff,
+    // so don't double-retry from react-query.
+    retry: false,
   });
 
   const mapPins: (SpeciesPin & {
@@ -159,7 +167,7 @@ export default function HomeScreen() {
 
     return pins
       .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
-      .slice(0, 100);
+      .slice(0, MAX_PIN_POOL);
   }, [observations]);
 
   const insights = useMemo(() => generateInsights(mapPins), [mapPins]);
@@ -280,6 +288,24 @@ export default function HomeScreen() {
                 <Text style={styles.mapLegendText}>
                   {mapPins.length} of {observations?.length ?? 0} sightings · last 30 days · tap a photo
                 </Text>
+              </View>
+            )}
+            {observationsError && (
+              <View style={styles.mapErrorPill}>
+                <Feather name="wifi-off" size={11} color="#FCA5A5" />
+                <Text style={styles.mapErrorText}>
+                  iNaturalist is slow right now
+                </Text>
+                <Pressable
+                  onPress={() => refetchObservations()}
+                  disabled={refetchingObservations}
+                  style={styles.mapErrorRetry}
+                  hitSlop={8}
+                >
+                  <Text style={styles.mapErrorRetryText}>
+                    {refetchingObservations ? "Retrying…" : "Retry"}
+                  </Text>
+                </Pressable>
               </View>
             )}
           </View>
@@ -598,6 +624,35 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Inter_500Medium",
     color: "#94A3B8",
+  },
+  mapErrorPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "center",
+    paddingLeft: 12,
+    paddingRight: 6,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#2A0F12",
+    borderWidth: 1,
+    borderColor: "#7F1D1D",
+  },
+  mapErrorText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: "#FCA5A5",
+  },
+  mapErrorRetry: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "#7F1D1D",
+  },
+  mapErrorRetryText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "#FECACA",
   },
   heroBanner: {
     flexDirection: "row",
