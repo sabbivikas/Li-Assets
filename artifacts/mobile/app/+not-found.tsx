@@ -1,45 +1,65 @@
 import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
-import { useColors } from "@/hooks/useColors";
+import {
+  CrayonUnderline,
+  HAND_FONT,
+  LABEL_FONT,
+  Mushroom,
+  PaperBackground,
+  PAINT,
+} from "@/components/paint";
 
 export default function NotFoundScreen() {
-  const colors = useColors();
-
   return (
     <>
       <Stack.Screen options={{ title: "Oops!" }} />
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.foreground }]}>
-          This screen doesn&apos;t exist.
-        </Text>
-
-        <Link href="/" style={styles.link}>
-          <Text style={[styles.linkText, { color: colors.primary }]}>
-            Go to home screen!
+      <View style={styles.container}>
+        <PaperBackground />
+        <View style={styles.center}>
+          <Mushroom size={120} />
+          <Text style={styles.title}>oh dear...</Text>
+          <CrayonUnderline width={140} color={PAINT.red} seed={3} />
+          <Text style={styles.subtitle}>
+            this little corner of the web doesn&apos;t exist (yet).
           </Text>
-        </Link>
+          <Link href="/" style={styles.link}>
+            <Text style={styles.linkText}>← go back home</Text>
+          </Link>
+        </View>
       </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: PAINT.paper },
+  center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    padding: 24,
+    gap: 6,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontFamily: HAND_FONT,
+    fontSize: 36,
+    color: PAINT.ink,
+    transform: [{ rotate: "-2deg" }],
+    marginTop: 16,
   },
-  link: {
-    marginTop: 15,
-    paddingVertical: 15,
+  subtitle: {
+    fontFamily: LABEL_FONT,
+    fontSize: 15,
+    color: PAINT.inkSoft,
+    textAlign: "center",
+    marginTop: 12,
+    paddingHorizontal: 20,
   },
+  link: { marginTop: 24 },
   linkText: {
-    fontSize: 14,
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    color: PAINT.blue,
   },
 });

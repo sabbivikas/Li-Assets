@@ -1,0 +1,367 @@
+Improve the Reports feature in the React Native Expo app “Life Web”.
+
+Goal:
+Build a professional, credible, legally careful report system that lets users generate an evidence-based biodiversity concern report, review and approve the content, then send it through their own email app.
+
+This must NOT auto-send emails.
+The user must review, edit, approve, and intentionally click Send.
+
+----------------------------------------
+REPORT FEATURE GOAL
+----------------------------------------
+
+The report should feel professional enough to share with:
+- city council members
+- parks departments
+- local environmental agencies
+- local newspapers
+- conservation nonprofits
+- schools and universities
+
+The report should be:
+- evidence-based
+- legally careful
+- non-accusatory
+- respectful
+- easy to understand
+- supported by iNaturalist data
+- clear about limitations
+
+----------------------------------------
+REPORT FLOW
+----------------------------------------
+
+Create a full report flow:
+
+1. Select Report Type
+User chooses:
+- Species Concern Report
+- Local Biodiversity Change Report
+- Pollinator Decline Signal
+- Invasive Species Watch
+- Park / Area Biodiversity Summary
+
+2. Select Area
+Use:
+- current location
+- saved location
+- searched city / park / county
+
+3. Select Species or Group
+Options:
+- specific species
+- birds
+- pollinators
+- plants
+- amphibians
+- fungi
+- all observed species nearby
+
+4. Generate Report
+Use iNaturalist data and local app analysis.
+
+5. Review Report
+Show a professional preview.
+
+6. User Approval
+Before sending, show:
+“I reviewed this report and understand it is based on community science observations, not formal legal or scientific determination.”
+
+User must check this box before send options unlock.
+
+7. Send Options
+After approval:
+- Open email app with recipient, subject, and body pre-filled
+- Copy report
+- Export as PDF
+- Share report
+
+----------------------------------------
+LEGAL / CREDIBILITY RULES
+----------------------------------------
+
+Do not use accusatory or legally risky language.
+
+Avoid words like:
+- negligence
+- violation
+- illegal
+- proven harm
+- caused by
+- responsible for
+
+Use careful language:
+- “may indicate”
+- “suggests a possible signal”
+- “based on community observations”
+- “requires further verification”
+- “could benefit from review”
+- “this report is not a formal environmental assessment”
+
+Every report must include a disclaimer:
+
+“This report is generated from publicly available community science observations, including iNaturalist data. It is intended to raise awareness and support further review. It should not be interpreted as a formal scientific, legal, or regulatory determination.”
+
+----------------------------------------
+REPORT CONTENT STRUCTURE
+----------------------------------------
+
+Create a professional report template with these sections:
+
+1. Title
+Example:
+“Local Biodiversity Signal Report: Pollinator Activity in Maple Grove”
+
+2. Executive Summary
+Plain-language 3–5 sentence summary.
+
+3. Location
+- city / area
+- radius
+- date generated
+- date range analyzed
+
+4. Key Finding
+Example:
+“Recent pollinator observations appear lower compared with historical observations during similar months.”
+
+5. Why This Matters
+Explain ecosystem impact simply:
+- pollination
+- food web effects
+- habitat health
+- local biodiversity
+
+6. Evidence Summary
+Include:
+- number of observations analyzed
+- number of species observed
+- date range
+- data source
+- research-grade filter if used
+- comparison window
+
+7. Species / Group Details
+For selected species or group:
+- common name
+- scientific name
+- conservation status if available
+- role in ecosystem
+- nearby observation trend
+- last seen date
+- seasonal activity
+
+8. Potential Local Impact
+Use the Life Web dependency model:
+Example:
+“Pollinators support flowering plants. If pollinator activity declines, plant reproduction may be affected, which can reduce food and habitat for other species.”
+
+9. Recommended Actions
+Use respectful civic recommendations:
+- review habitat conditions
+- support native planting
+- reduce pesticide exposure where possible
+- monitor future observations
+- encourage community science participation
+- consult local ecology experts
+
+10. Data Limitations
+Mention:
+- iNaturalist data depends on public observations
+- observation volume can change because of user activity
+- lack of observations does not always mean absence
+- sensitive species locations may be obscured
+- findings should be verified by experts
+
+11. Sources
+Include:
+- iNaturalist observations
+- iNaturalist taxa metadata
+- app-generated analysis date
+- underlying observation links if available
+
+----------------------------------------
+EMAIL APPROVAL + SEND FLOW
+----------------------------------------
+
+Create an approval screen before sending.
+
+Approval checkbox text:
+“I have reviewed this message and understand that it is based on community observation data and is intended to request awareness or review, not make legal claims.”
+
+Only after checkbox is selected:
+- enable “Open Email App” button
+
+Email behavior:
+- Use Linking.openURL with mailto:
+- Pre-fill:
+  - recipient email
+  - subject
+  - professional email body
+- Do not send directly from the app
+- Let the user send from their own mail client
+
+Email subject examples:
+- “Local Biodiversity Signal Report for [Area]”
+- “Community Observation Report: [Species/Group] in [Area]”
+- “Request for Review: Local Biodiversity Signal in [Area]”
+
+Email body template:
+
+Hi [Recipient Name],
+
+I’m sharing a local biodiversity report generated from publicly available community science observations.
+
+The report highlights a possible biodiversity signal in [Area], related to [Species/Group]. The findings are not a formal scientific or legal determination, but they may be useful for awareness, monitoring, or further review.
+
+Key summary:
+[Insert 3 bullet summary]
+
+Why this matters:
+[Insert short impact explanation]
+
+Suggested next step:
+I would appreciate if your office/team could review whether this aligns with any existing local conservation, habitat, or monitoring efforts.
+
+Thank you for your time,
+[User Name]
+
+----------------------------------------
+RECIPIENT SELECTION
+----------------------------------------
+
+Create recipient categories:
+
+- City Council
+- Parks Department
+- Environmental Agency
+- Local Newspaper
+- Conservation Nonprofit
+- School / University
+
+Use mock recipient data for now.
+
+Recipient object:
+{
+  name,
+  role,
+  organization,
+  category,
+  city,
+  state,
+  email,
+  website
+}
+
+Allow user to:
+- choose one recipient
+- manually edit email
+- manually edit subject
+- manually edit body
+
+Do not allow bulk sending in MVP.
+
+----------------------------------------
+PDF REPORT
+----------------------------------------
+
+Add export-ready PDF layout.
+
+PDF should include:
+- Life Web branding
+- report title
+- map/location summary
+- species photo if available
+- chart or trend summary
+- ecological impact chain
+- caveats
+- sources
+- generated date
+
+If PDF generation is hard, create a clean HTML report view first and add PDF export as a placeholder.
+
+----------------------------------------
+UI DESIGN
+----------------------------------------
+
+Make the report feature feel official and trustworthy.
+
+Design style:
+- clean white report pages
+- dark green headers
+- professional spacing
+- readable typography
+- clear section dividers
+- badges for “Community Data”, “Needs Review”, “Research Grade”
+- avoid alarming red except for warnings
+
+Tone:
+- calm
+- serious
+- civic
+- respectful
+- not activist yelling
+- not dramatic
+
+----------------------------------------
+TECHNICAL REQUIREMENTS
+----------------------------------------
+
+Use:
+- React Native Expo
+- AsyncStorage or SQLite for saved reports
+- Linking API for mailto
+- iNaturalist API data already available in app
+- reusable ReportPreview component
+- reusable EmailComposerPreview component
+- reusable RecipientSelector component
+
+Add screens:
+- ReportsHomeScreen
+- CreateReportScreen
+- ReportPreviewScreen
+- RecipientSelectorScreen
+- EmailApprovalScreen
+- SavedReportsScreen
+
+----------------------------------------
+DATA INTEGRITY
+----------------------------------------
+
+For every generated report, store:
+- reportId
+- reportType
+- location
+- species/group
+- dateRange
+- generatedDate
+- dataSource
+- observationsCount
+- uniqueSpeciesCount
+- findings
+- caveats
+- userEditedEmailBody
+- approvalStatus
+
+----------------------------------------
+IMPORTANT PRODUCT RULE
+----------------------------------------
+
+The report should not feel like a random AI-generated letter.
+
+It should feel like:
+
+“Here is a structured local biodiversity concern report, based on community observation data, ready for a responsible citizen to share with the right people.”
+
+----------------------------------------
+FINAL OUTCOME
+----------------------------------------
+
+A user should be able to:
+1. discover a local biodiversity issue
+2. generate a clear report
+3. understand the evidence
+4. review the caveats
+5. choose a relevant recipient
+6. approve the message
+7. open their email app with a professional message ready to send

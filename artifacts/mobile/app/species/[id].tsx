@@ -1,12 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useRef } from "react";
+import React from "react";
 import {
-  Animated,
-  Dimensions,
-  Image,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -14,32 +13,54 @@ import {
   Text,
   View,
 } from "react-native";
+import Svg, { Path, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ConservationBadge } from "@/components/ConservationBadge";
-import { LoadingShimmer } from "@/components/LoadingShimmer";
+
+import {
+  Bee,
+  Bird,
+  CrayonUnderline,
+  Flower,
+  Frog,
+  HAND_FONT,
+  LABEL_FONT,
+  Mushroom,
+  PaperBackground,
+  PAINT,
+  wobble,
+  WobbleBox,
+  WobbleButton,
+} from "@/components/paint";
 import { useLocation } from "@/context/LocationContext";
 import {
-  fetchSpeciesById,
+  getEcosystemRoles,
+  getRoleColor,
+  getRoleLabel,
+} from "@/services/ecologyModel";
+import {
   fetchObservationHistogram,
+  fetchSpeciesById,
   fetchSpeciesObservations,
   getConservationLabel,
   getIconicGroup,
 } from "@/services/iNaturalist";
-import { getEcosystemRoles, getRoleLabel, getRoleColor } from "@/services/ecologyModel";
-import { useColors } from "@/hooks/useColors";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CHART_HEIGHT = 80;
+const CHART_HEIGHT = 90;
+
+const GROUP_CRITTER: Record<string, React.ComponentType<{ size?: number }>> = {
+  Birds: Bird,
+  Insects: Bee,
+  Plants: Flower,
+  Amphibians: Frog,
+  Fungi: Mushroom,
+};
 
 export default function SpeciesDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { lat, lng, radius } = useLocation();
   const taxonId = parseInt(id || "0");
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const { data: taxon, isLoading: loadingTaxon } = useQuery({
     queryKey: ["taxon", taxonId],
@@ -59,16 +80,6 @@ export default function SpeciesDetailScreen() {
     enabled: !!taxonId && !!lat && !!lng,
   });
 
-  React.useEffect(() => {
-    if (taxon) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [taxon]);
-
   const isLoading = loadingTaxon || loadingObs || loadingHist;
 
   const photoUrl =
@@ -77,11 +88,14 @@ export default function SpeciesDetailScreen() {
     taxon?.default_photo?.medium_url;
 
   const group = getIconicGroup(taxon?.iconic_taxon_name);
-  const roles = getEcosystemRoles(taxon?.iconic_taxon_name, taxon?.preferred_common_name);
+  const Critter = GROUP_CRITTER[group] ?? Flower;
+  const roles = getEcosystemRoles(
+    taxon?.iconic_taxon_name,
+    taxon?.preferred_common_name
+  );
   const conservationStatus = taxon?.conservation_status?.status;
   const conservationInfo = getConservationLabel(conservationStatus);
 
-  // Observation dates
   const dates = observations
     ?.map((o) => o.observed_on)
     .filter(Boolean)
@@ -89,15 +103,13 @@ export default function SpeciesDetailScreen() {
   const firstSeen = dates?.[dates.length - 1];
   const lastSeen = dates?.[0];
 
-  // Histogram chart
   const histData = histogram?.results || {};
   const histEntries = Object.entries(histData)
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-24);
   const maxCount = Math.max(...histEntries.map(([, v]) => v as number), 1);
-
-  // Year trend
   const currentYear = new Date().getFullYear();
+
   const yearCounts: Record<string, number> = {};
   histEntries.forEach(([date, count]) => {
     const year = date.slice(0, 4);
@@ -108,270 +120,322 @@ export default function SpeciesDetailScreen() {
   const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.earthDark }]}>
+    <View style={styles.container}>
+      <PaperBackground />
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: bottomInsets + 120 },
+          { paddingTop: topInsets + 8, paddingBottom: bottomInsets + 60 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero image */}
-        <View style={styles.heroWrap}>
-          {photoUrl ? (
-            <Image source={{ uri: photoUrl }} style={styles.heroImage} />
-          ) : (
-            <View style={[styles.heroPlaceholder, { backgroundColor: "#0F1824" }]}>
-              <Feather name="image" size={44} color="#334155" />
+        {/* Back button */}
+        <Pressable onPress={() => router.back()} style={styles.backWrap}>
+          <WobbleBox width={92} height={40} fill="white" seed={1} padding={0}>
+            <View style={styles.backInner}>
+              <Feather name="arrow-left" size={16} color={PAINT.ink} />
+              <Text style={styles.backText}>back</Text>
             </View>
-          )}
-          <View style={styles.heroOverlay} />
-          {/* Back button */}
-          <Pressable
-            onPress={() => router.back()}
-            style={[
-              styles.backBtn,
-              {
-                top: topInsets + 12,
-                backgroundColor: "#00000060",
-              },
-            ]}
-          >
-            <Feather name="arrow-left" size={20} color="#FFFFFF" />
-          </Pressable>
-          {/* Hero text overlay */}
-          {taxon && (
-            <Animated.View style={[styles.heroTextWrap, { opacity: fadeAnim }]}>
-              <Text style={styles.heroCommonName}>
-                {taxon.preferred_common_name || taxon.name}
-              </Text>
-              <Text style={styles.heroSciName}>{taxon.name}</Text>
-              <View style={styles.heroBadges}>
-                <View style={[styles.groupPill, { backgroundColor: "#FFFFFF20" }]}>
-                  <Text style={styles.groupPillText}>{group}</Text>
+          </WobbleBox>
+        </Pressable>
+
+        {/* Hero polaroid */}
+        <View style={styles.polaroidWrap}>
+          <View style={[styles.tape, styles.tapeLeft]} />
+          <View style={[styles.tape, styles.tapeRight]} />
+          <View style={styles.polaroid}>
+            <View style={styles.heroFrame}>
+              {photoUrl ? (
+                <Image
+                  source={{ uri: photoUrl }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, styles.heroFallback]}>
+                  <Critter size={96} />
                 </View>
-                <ConservationBadge status={conservationStatus} />
-              </View>
-            </Animated.View>
-          )}
+              )}
+            </View>
+            <View style={styles.polaroidCaption}>
+              {taxon ? (
+                <>
+                  <Text style={styles.commonName} numberOfLines={2}>
+                    {taxon.preferred_common_name || taxon.name}
+                  </Text>
+                  <Text style={styles.sciName}>{taxon.name}</Text>
+                  <View style={styles.heroBadges}>
+                    <View
+                      style={[
+                        styles.groupPill,
+                        { backgroundColor: PAINT.sun + "55" },
+                      ]}
+                    >
+                      <Text style={styles.groupPillText}>{group}</Text>
+                    </View>
+                    {conservationStatus &&
+                      conservationStatus.toUpperCase() !== "LC" && (
+                        <View
+                          style={[
+                            styles.groupPill,
+                            { backgroundColor: conservationInfo.color + "44" },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.groupPillText,
+                              { color: conservationInfo.color },
+                            ]}
+                          >
+                            {conservationInfo.label}
+                          </Text>
+                        </View>
+                      )}
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.commonName}>loading…</Text>
+              )}
+            </View>
+          </View>
         </View>
 
-        {isLoading ? (
-          <View style={styles.loadingContent}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <LoadingShimmer
-                key={i}
-                width={i % 2 === 0 ? "80%" : "60%"}
-                height={i === 0 ? 18 : 14}
-                borderRadius={6}
-              />
-            ))}
+        {isLoading || !taxon ? (
+          <View style={styles.loadingWrap}>
+            <Bee size={56} />
+            <Text style={styles.loadingText}>
+              flipping through field notes…
+            </Text>
           </View>
-        ) : taxon ? (
-          <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-            {/* Conservation status detail */}
-            {conservationStatus && conservationStatus.toUpperCase() !== "LC" && (
-              <View
-                style={[
-                  styles.conservationBanner,
-                  {
-                    backgroundColor: conservationInfo.color + "15",
-                    borderColor: conservationInfo.color + "40",
-                  },
-                ]}
-              >
-                <Feather name="alert-triangle" size={15} color={conservationInfo.color} />
-                <Text style={[styles.conservationText, { color: conservationInfo.color }]}>
-                  {conservationInfo.label} — IUCN Red List
-                </Text>
-              </View>
-            )}
-
-            {/* Observation stats */}
+        ) : (
+          <View style={styles.content}>
+            {/* Stat row */}
             <View style={styles.statsRow}>
-              <StatBox
-                icon="eye"
-                label="Nearby Observations"
+              <PaintStat
+                label="Sightings"
                 value={observations?.length?.toLocaleString() || "0"}
-                color="#22D3EE"
+                color={PAINT.blue}
+                seed={3}
+                emoji="👀"
               />
-              <StatBox
-                icon="calendar"
-                label="First Observed"
+              <PaintStat
+                label="First seen"
                 value={firstSeen ? formatDate(firstSeen) : "—"}
-                color="#4ADE80"
+                color={PAINT.grass}
+                seed={9}
+                emoji="📅"
               />
-              <StatBox
-                icon="clock"
-                label="Last Observed"
+              <PaintStat
+                label="Last seen"
                 value={lastSeen ? formatDate(lastSeen) : "—"}
-                color="#FBBF24"
+                color={PAINT.sun}
+                seed={17}
+                emoji="🕓"
               />
             </View>
 
-            {/* Ecosystem roles */}
-            <SectionHeader title="Ecosystem Roles" icon="layers" />
+            {/* Roles */}
+            <SectionTitle text="Ecosystem Roles" color={PAINT.grassDeep} seed={5} />
             <View style={styles.rolesWrap}>
-              {roles.map((role) => (
-                <View
-                  key={role}
-                  style={[
-                    styles.rolePill,
-                    { backgroundColor: getRoleColor(role) + "20" },
-                  ]}
-                >
+              {roles.map((role) => {
+                const c = getRoleColor(role);
+                return (
                   <View
+                    key={role}
                     style={[
-                      styles.roleDot,
-                      { backgroundColor: getRoleColor(role) },
+                      styles.rolePill,
+                      { backgroundColor: c + "33", borderColor: c },
                     ]}
-                  />
-                  <Text style={[styles.roleText, { color: getRoleColor(role) }]}>
-                    {getRoleLabel(role)}
-                  </Text>
-                </View>
-              ))}
+                  >
+                    <View style={[styles.roleDot, { backgroundColor: c }]} />
+                    <Text style={[styles.roleText, { color: PAINT.ink }]}>
+                      {getRoleLabel(role)}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
 
-            {/* Observation timeline chart */}
+            {/* Observation timeline */}
             {histEntries.length > 0 && (
               <>
-                <SectionHeader title="Observation Timeline" icon="bar-chart-2" />
-                <View style={[styles.chartCard, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}>
-                  <View style={styles.chartBars}>
-                    {histEntries.map(([date, count]) => {
-                      const height = ((count as number) / maxCount) * CHART_HEIGHT;
-                      const year = date.slice(0, 4);
-                      const month = date.slice(5, 7);
-                      const isCurrentYear = year === String(currentYear);
-                      return (
-                        <View key={date} style={styles.barWrap}>
-                          <View style={styles.barContainer}>
-                            <View
-                              style={[
-                                styles.bar,
-                                {
-                                  height: Math.max(height, 2),
-                                  backgroundColor: isCurrentYear
-                                    ? "#4ADE80"
-                                    : "#22D3EE50",
-                                },
-                              ]}
-                            />
-                          </View>
+                <SectionTitle
+                  text="Observation Timeline"
+                  color={PAINT.blue}
+                  seed={11}
+                />
+                <WobbleBox
+                  width={358}
+                  height={CHART_HEIGHT + 56}
+                  fill="white"
+                  seed={21}
+                  padding={14}
+                >
+                  <View>
+                    <Svg
+                      width={330}
+                      height={CHART_HEIGHT}
+                      viewBox={`0 0 ${histEntries.length * 13} ${CHART_HEIGHT}`}
+                    >
+                      {histEntries.map(([date, count], i) => {
+                        const h = ((count as number) / maxCount) * (CHART_HEIGHT - 14);
+                        const isCurrent = date.slice(0, 4) === String(currentYear);
+                        return (
+                          <Rect
+                            key={date}
+                            x={i * 13 + 2}
+                            y={CHART_HEIGHT - h - 8}
+                            width={9}
+                            height={h}
+                            fill={isCurrent ? PAINT.grassDeep : PAINT.blue}
+                            fillOpacity={isCurrent ? 0.85 : 0.5}
+                            stroke={PAINT.ink}
+                            strokeWidth={0.6}
+                          />
+                        );
+                      })}
+                      <Path
+                        d={wobble(
+                          0,
+                          CHART_HEIGHT - 6,
+                          histEntries.length * 13,
+                          CHART_HEIGHT - 6,
+                          0.3,
+                          12,
+                          7
+                        )}
+                        stroke={PAINT.ink}
+                        strokeWidth={1}
+                        fill="none"
+                      />
+                    </Svg>
+                    <View style={styles.chartLegend}>
+                      <Text style={styles.chartLegendText}>past 24 months</Text>
+                      <View style={styles.legendItems}>
+                        <View style={styles.legendItem}>
+                          <View
+                            style={[
+                              styles.legendDot,
+                              { backgroundColor: PAINT.grassDeep },
+                            ]}
+                          />
+                          <Text style={styles.legendLabel}>this year</Text>
                         </View>
-                      );
-                    })}
-                  </View>
-                  <View style={styles.chartLegend}>
-                    <Text style={[styles.chartLegendText, { color: "#334155" }]}>
-                      Past 24 months
-                    </Text>
-                    <View style={styles.legendItems}>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: "#4ADE80" }]} />
-                        <Text style={[styles.legendLabel, { color: "#475569" }]}>This year</Text>
-                      </View>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: "#22D3EE50" }]} />
-                        <Text style={[styles.legendLabel, { color: "#475569" }]}>Previous</Text>
+                        <View style={styles.legendItem}>
+                          <View
+                            style={[
+                              styles.legendDot,
+                              { backgroundColor: PAINT.blue, opacity: 0.5 },
+                            ]}
+                          />
+                          <Text style={styles.legendLabel}>previous</Text>
+                        </View>
                       </View>
                     </View>
                   </View>
-                </View>
+                </WobbleBox>
               </>
             )}
 
-            {/* Year-by-year summary */}
+            {/* Yearly */}
             {Object.keys(yearCounts).length > 1 && (
               <>
-                <SectionHeader title="Yearly Activity" icon="trending-up" />
-                <View style={styles.yearRows}>
+                <SectionTitle
+                  text="Yearly Activity"
+                  color={PAINT.orange}
+                  seed={31}
+                />
+                <View style={{ gap: 8 }}>
                   {Object.entries(yearCounts)
                     .sort(([a], [b]) => b.localeCompare(a))
                     .slice(0, 5)
-                    .map(([year, count]) => (
-                      <View
-                        key={year}
-                        style={[styles.yearRow, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}
-                      >
-                        <Text style={[styles.yearLabel, { color: "#94A3B8" }]}>{year}</Text>
-                        <View style={styles.yearBarWrap}>
-                          <View
-                            style={[
-                              styles.yearBar,
-                              {
-                                width: `${(count / Math.max(...Object.values(yearCounts))) * 100}%`,
-                                backgroundColor:
-                                  year === String(currentYear)
-                                    ? "#4ADE80"
-                                    : "#22D3EE40",
-                              },
-                            ]}
-                          />
-                        </View>
-                        <Text style={[styles.yearCount, { color: "#FFFFFF" }]}>{count}</Text>
-                      </View>
-                    ))}
+                    .map(([year, count], i) => {
+                      const max = Math.max(...Object.values(yearCounts));
+                      const widthPct = (count / max) * 100;
+                      const isCurrent = year === String(currentYear);
+                      return (
+                        <WobbleBox
+                          key={year}
+                          width={358}
+                          height={42}
+                          fill="white"
+                          seed={i * 5 + 41}
+                          padding={0}
+                        >
+                          <View style={styles.yearRow}>
+                            <Text style={styles.yearLabel}>{year}</Text>
+                            <View style={styles.yearBarTrack}>
+                              <View
+                                style={[
+                                  styles.yearBarFill,
+                                  {
+                                    width: `${widthPct}%`,
+                                    backgroundColor: isCurrent
+                                      ? PAINT.grassDeep
+                                      : PAINT.blue + "99",
+                                  },
+                                ]}
+                              />
+                            </View>
+                            <Text style={styles.yearCount}>{count}</Text>
+                          </View>
+                        </WobbleBox>
+                      );
+                    })}
                 </View>
               </>
             )}
 
-            {/* Wikipedia link */}
+            {/* Wikipedia */}
             {taxon.wikipedia_url && (
               <>
-                <SectionHeader title="Learn More" icon="book-open" />
+                <SectionTitle
+                  text="Learn More"
+                  color={PAINT.purple}
+                  seed={51}
+                />
                 <Pressable
-                  onPress={() => {
-                    if (taxon.wikipedia_url) {
-                      const { Linking } = require("react-native");
-                      Linking.openURL(taxon.wikipedia_url);
-                    }
-                  }}
-                  style={[styles.wikiBtn, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}
+                  onPress={() =>
+                    taxon.wikipedia_url &&
+                    Linking.openURL(taxon.wikipedia_url)
+                  }
                 >
-                  <Feather name="external-link" size={16} color="#22D3EE" />
-                  <Text style={[styles.wikiBtnText, { color: "#22D3EE" }]}>
-                    View on Wikipedia
-                  </Text>
+                  <WobbleBox
+                    width={358}
+                    height={56}
+                    fill={PAINT.cream}
+                    seed={55}
+                    padding={0}
+                  >
+                    <View style={styles.wikiInner}>
+                      <Feather name="external-link" size={18} color={PAINT.blue} />
+                      <Text style={styles.wikiText}>View on Wikipedia</Text>
+                      <Feather name="chevron-right" size={18} color={PAINT.inkMute} />
+                    </View>
+                  </WobbleBox>
                 </Pressable>
               </>
             )}
 
-            {/* Impact simulation CTA */}
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                router.push(`/impact/${taxonId}` as any);
-              }}
-              style={({ pressed }) => [
-                styles.impactBtn,
-                {
-                  opacity: pressed ? 0.85 : 1,
-                  transform: [{ scale: pressed ? 0.97 : 1 }],
-                },
-              ]}
-            >
-              <View style={styles.impactBtnInner}>
-                <View style={styles.impactBtnLeft}>
-                  <Feather name="zap" size={22} color="#FFFFFF" />
-                  <View>
-                    <Text style={styles.impactBtnTitle}>
-                      What happens if this disappears?
-                    </Text>
-                    <Text style={styles.impactBtnDesc}>
-                      See the ecological chain reaction
-                    </Text>
-                  </View>
-                </View>
-                <Feather name="arrow-right" size={18} color="#FFFFFF80" />
-              </View>
-            </Pressable>
-          </Animated.View>
-        ) : (
-          <View style={styles.errorState}>
-            <Feather name="alert-circle" size={28} color="#EF4444" />
-            <Text style={[styles.errorText, { color: "#94A3B8" }]}>Could not load species data</Text>
+            {/* Impact CTA */}
+            <View style={{ alignItems: "center", marginTop: 12 }}>
+              <WobbleButton
+                label="What if it disappears?"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push(`/impact/${taxonId}` as any);
+                }}
+                color={PAINT.red}
+                width={320}
+                height={62}
+                seed={71}
+                textColor="white"
+                leading={<Feather name="zap" size={20} color="white" />}
+              />
+              <Text style={styles.ctaCaption}>
+                see the ecological chain reaction →
+              </Text>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -379,21 +443,49 @@ export default function SpeciesDetailScreen() {
   );
 }
 
-function StatBox({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
+function PaintStat({
+  label,
+  value,
+  color,
+  seed,
+  emoji,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  seed: number;
+  emoji: string;
+}) {
   return (
-    <View style={[styles.statBox, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}>
-      <Feather name={icon as any} size={14} color={color} />
-      <Text style={[styles.statValue, { color: "#FFFFFF" }]}>{value}</Text>
-      <Text style={[styles.statLabel, { color: "#475569" }]}>{label}</Text>
+    <View style={{ flex: 1 }}>
+      <WobbleBox width={108} height={86} fill="white" seed={seed} padding={0}>
+        <View style={styles.statInner}>
+          <Text style={styles.statEmoji}>{emoji}</Text>
+          <Text style={[styles.statValue, { color }]} numberOfLines={1}>
+            {value}
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={1}>
+            {label}
+          </Text>
+        </View>
+      </WobbleBox>
     </View>
   );
 }
 
-function SectionHeader({ title, icon }: { title: string; icon: string }) {
+function SectionTitle({
+  text,
+  color,
+  seed,
+}: {
+  text: string;
+  color: string;
+  seed: number;
+}) {
   return (
-    <View style={styles.sectionHeader}>
-      <Feather name={icon as any} size={14} color="#4ADE80" />
-      <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={{ marginTop: 8, marginBottom: 6 }}>
+      <Text style={styles.sectionTitle}>{text}</Text>
+      <CrayonUnderline width={text.length * 14} color={color} seed={seed} />
     </View>
   );
 }
@@ -404,132 +496,130 @@ function formatDate(dateStr: string): string {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: {},
-  heroWrap: {
-    height: 300,
-    position: "relative",
-  },
-  heroImage: {
-    width: "100%",
-    height: 300,
-    resizeMode: "cover",
-  },
-  heroPlaceholder: {
-    width: "100%",
-    height: 300,
+  container: { flex: 1, backgroundColor: PAINT.paper },
+  scroll: { paddingHorizontal: 16 },
+  backWrap: { alignSelf: "flex-start", marginBottom: 8 },
+  backInner: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#000000",
-    opacity: 0.45,
+  backText: { fontFamily: HAND_FONT, fontSize: 18, color: PAINT.ink },
+  polaroidWrap: {
+    alignItems: "center",
+    marginTop: 6,
+    marginBottom: 18,
   },
-  backBtn: {
+  polaroid: {
+    width: 326,
+    backgroundColor: "white",
+    borderWidth: 3,
+    borderColor: PAINT.ink,
+    padding: 12,
+    transform: [{ rotate: "-1deg" }],
+  },
+  tape: {
     position: "absolute",
-    left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    top: -10,
+    width: 64,
+    height: 22,
+    borderWidth: 1.5,
+    borderColor: PAINT.ink,
+    zIndex: 2,
+  },
+  tapeLeft: {
+    left: 30,
+    backgroundColor: PAINT.sun + "cc",
+    transform: [{ rotate: "-7deg" }],
+  },
+  tapeRight: {
+    right: 30,
+    backgroundColor: PAINT.pink + "cc",
+    transform: [{ rotate: "9deg" }],
+  },
+  heroFrame: {
+    width: "100%",
+    height: 240,
+    borderWidth: 2.5,
+    borderColor: PAINT.ink,
+    backgroundColor: PAINT.cream,
+    overflow: "hidden",
+  },
+  heroFallback: {
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: PAINT.sun + "55",
   },
-  heroTextWrap: {
-    position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
-    gap: 4,
+  polaroidCaption: { paddingTop: 12, gap: 4 },
+  commonName: {
+    fontFamily: HAND_FONT,
+    fontSize: 28,
+    color: PAINT.ink,
+    lineHeight: 30,
   },
-  heroCommonName: {
-    fontSize: 26,
-    fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
-    letterSpacing: -0.3,
-    textShadowColor: "#000000",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  heroSciName: {
+  sciName: {
+    fontFamily: LABEL_FONT,
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
+    color: PAINT.inkSoft,
     fontStyle: "italic",
-    color: "#FFFFFF99",
   },
   heroBadges: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    gap: 6,
     marginTop: 6,
     flexWrap: "wrap",
   },
   groupPill: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 100,
+    borderWidth: 1.5,
+    borderColor: PAINT.ink,
   },
   groupPillText: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-    color: "#FFFFFF",
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.ink,
+    fontWeight: "700",
   },
-  loadingContent: {
-    padding: 20,
-    gap: 10,
-  },
-  content: {
-    padding: 20,
-    gap: 16,
-  },
-  conservationBanner: {
-    flexDirection: "row",
+  loadingWrap: {
     alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
     gap: 10,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
   },
-  conservationText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
+  loadingText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 14,
+    color: PAINT.inkSoft,
   },
-  statsRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  statBox: {
+  content: { gap: 12 },
+  statsRow: { flexDirection: "row", gap: 8 },
+  statInner: {
     flex: 1,
-    padding: 12,
-    borderRadius: 14,
     alignItems: "center",
-    gap: 5,
-    borderWidth: 1,
+    justifyContent: "center",
+    gap: 2,
+    paddingHorizontal: 4,
   },
+  statEmoji: { fontSize: 18 },
   statValue: {
-    fontSize: 15,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
+    fontFamily: HAND_FONT,
+    fontSize: 18,
+    lineHeight: 20,
   },
   statLabel: {
-    fontSize: 10,
-    fontFamily: "Inter_500Medium",
-    textAlign: "center",
-    lineHeight: 13,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    marginTop: 4,
-    marginBottom: -4,
+    fontFamily: LABEL_FONT,
+    fontSize: 11,
+    color: PAINT.inkSoft,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    fontFamily: HAND_FONT,
+    fontSize: 24,
+    color: PAINT.ink,
+    transform: [{ rotate: "-0.5deg" }],
   },
   rolesWrap: {
     flexDirection: "row",
@@ -540,140 +630,75 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 100,
+    borderWidth: 1.5,
   },
-  roleDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  roleText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
-  chartCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-  },
-  chartBars: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    height: CHART_HEIGHT,
-    gap: 2,
-  },
-  barWrap: {
-    flex: 1,
-    alignItems: "center",
-    height: CHART_HEIGHT,
-    justifyContent: "flex-end",
-  },
-  barContainer: {
-    width: "100%",
-    justifyContent: "flex-end",
-    height: CHART_HEIGHT,
-  },
-  bar: {
-    width: "100%",
-    borderRadius: 3,
-    minHeight: 2,
-  },
+  roleDot: { width: 8, height: 8, borderRadius: 4 },
+  roleText: { fontFamily: LABEL_FONT, fontSize: 12, fontWeight: "700" },
   chartLegend: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 10,
+    marginTop: 8,
   },
   chartLegendText: {
+    fontFamily: LABEL_FONT,
     fontSize: 11,
-    fontFamily: "Inter_400Regular",
+    color: PAINT.inkMute,
   },
   legendItems: { flexDirection: "row", gap: 12 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  yearRows: { gap: 6 },
+  legendLabel: { fontFamily: LABEL_FONT, fontSize: 11, color: PAINT.inkSoft },
   yearRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
+    paddingHorizontal: 12,
   },
   yearLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    width: 38,
+    fontFamily: HAND_FONT,
+    fontSize: 18,
+    width: 46,
+    color: PAINT.ink,
   },
-  yearBarWrap: {
+  yearBarTrack: {
     flex: 1,
-    height: 6,
-    backgroundColor: "#1E293B",
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: PAINT.paperDeep,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: PAINT.ink,
     overflow: "hidden",
   },
-  yearBar: {
-    height: 6,
-    borderRadius: 3,
-  },
+  yearBarFill: { height: "100%" },
   yearCount: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    width: 30,
+    fontFamily: HAND_FONT,
+    fontSize: 18,
+    color: PAINT.ink,
+    width: 36,
     textAlign: "right",
   },
-  wikiBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  wikiBtnText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  impactBtn: {
-    borderRadius: 18,
-    overflow: "hidden",
-    marginTop: 4,
-  },
-  impactBtnInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 18,
-    backgroundColor: "#16A34A",
-    gap: 14,
-  },
-  impactBtnLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+  wikiInner: {
     flex: 1,
-  },
-  impactBtnTitle: {
-    fontSize: 15,
-    fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
-  },
-  impactBtnDesc: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: "#FFFFFF99",
-    marginTop: 1,
-  },
-  errorState: {
-    padding: 40,
+    flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    paddingHorizontal: 16,
+    gap: 12,
   },
-  errorText: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
+  wikiText: {
+    flex: 1,
+    fontFamily: HAND_FONT,
+    fontSize: 20,
+    color: PAINT.ink,
+  },
+  ctaCaption: {
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.inkSoft,
+    marginTop: 6,
   },
 });
