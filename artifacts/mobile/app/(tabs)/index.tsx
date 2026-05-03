@@ -51,6 +51,31 @@ const GROUP_COLORS: Record<string, string> = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// In-memory caches keyed across renders so role lookups and photo URL
+// resolution don't redo work for the same taxa as the user moves around.
+const roleCache = new Map<string, ReturnType<typeof getEcosystemRoles>>();
+const photoCache = new Map<number, { square?: string; medium?: string }>();
+
+function cachedRoles(iconic?: string, name?: string) {
+  const key = `${iconic || ""}|${name || ""}`;
+  let r = roleCache.get(key);
+  if (!r) {
+    r = getEcosystemRoles(iconic, name);
+    roleCache.set(key, r);
+  }
+  return r;
+}
+
+function cachedPhotos(taxon?: { id?: number; default_photo?: { square_url?: string; medium_url?: string } }) {
+  if (!taxon?.id) return { square: taxon?.default_photo?.square_url, medium: taxon?.default_photo?.medium_url };
+  let p = photoCache.get(taxon.id);
+  if (!p) {
+    p = { square: taxon.default_photo?.square_url, medium: taxon.default_photo?.medium_url };
+    photoCache.set(taxon.id, p);
+  }
+  return p;
+}
+
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -90,10 +115,11 @@ export default function HomeScreen() {
 
   // Build importance-weighted map pins from the observations dataset.
   // Importance = base + role boost + frequency boost (same species seen often).
-  const mapPins: SpeciesPin[] = useMemo(() => {
+  const mapPins: (SpeciesPin & { observedOn?: string; conservationStatus?: string })[] = useMemo(() => {
     if (!observations) return [];
 
-    // Count how often each species appears in the observations window.
+    // Count how often each species appears in the observations window —
+    // this is the per-taxon "recent nearby count" we surface in the sheet.
     const speciesCounts: Record<number, number> = {};
     observations.forEach((o) => {
       const id = o.taxon?.id;
@@ -104,19 +130,17 @@ export default function HomeScreen() {
     const maxFreq = Math.max(1, ...Object.values(speciesCounts));
 
     const pins = observations
-      .map<SpeciesPin | null>((o) => {
+      .map((o) => {
         if (!o.location) return null;
         const [obsLat, obsLng] = o.location.split(",").map(Number);
         if (!isFinite(obsLat) || !isFinite(obsLng)) return null;
         const taxon = o.taxon;
         const group = getIconicGroup(taxon?.iconic_taxon_name);
-        const roles = getEcosystemRoles(
+        const roles = cachedRoles(
           taxon?.iconic_taxon_name,
           taxon?.preferred_common_name,
         );
         const primaryRole = roles[0];
-        // Role boost: pollinators, predators, indicators, primary producers
-        // are more important to the local web than generic prey/generalists.
         const keyRoles = new Set([
           "pollinator",
           "predator",
@@ -131,13 +155,13 @@ export default function HomeScreen() {
 
         const freq = (taxon?.id && speciesCounts[taxon.id]) || 1;
         const freqBoost = freq / maxFreq;
-
         const importance = Math.min(
           1,
           0.25 + roleBoost * 0.45 + freqBoost * 0.3,
         );
 
         const ringColor = getRoleColor(primaryRole);
+        const photos = cachedPhotos(taxon);
 
         return {
           id: o.id,
@@ -148,19 +172,23 @@ export default function HomeScreen() {
           lat: obsLat,
           lng: obsLng,
           color: ringColor,
-          photoUrl:
-            taxon?.default_photo?.square_url ||
-            taxon?.default_photo?.medium_url,
+          photoUrl: photos.square || photos.medium,
+          photoMediumUrl: photos.medium || photos.square,
           importance,
           role: getRoleLabel(primaryRole),
           group,
-          observationCount: taxon?.observations_count,
+          recentNearbyCount: freq,
+          observedOn: o.observed_on,
+          conservationStatus: taxon?.conservation_status?.status?.toUpperCase(),
         };
       })
-      .filter((p): p is SpeciesPin => p !== null);
+      .filter((p): p is NonNullable<typeof p> => p !== null);
 
-    // Sort by importance desc and cap at 25 visible markers
-    return pins.sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0)).slice(0, 25);
+    // Sort by importance desc and cap at 25 visible markers — this is the
+    // "rendered map dataset" all stats are derived from.
+    return pins
+      .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
+      .slice(0, 25);
   }, [observations]);
 
   const insights = useMemo(
@@ -168,43 +196,51 @@ export default function HomeScreen() {
     [observations, species],
   );
 
-  // Stats are derived from the same observations dataset whenever possible
-  // so the map and the cards tell the same story.
+  // Stats are derived from the EXACT rendered map dataset (capped 25 pins)
+  // so map and cards tell the same story.
   const stats = useMemo(() => {
-    const obs = observations ?? [];
-    const uniqueSpecies = new Set(
-      obs.map((o) => o.taxon?.id).filter((x): x is number => typeof x === "number"),
-    ).size;
-
-    // Most common group in the observations window
-    const groupCounts: Record<string, number> = {};
-    obs.forEach((o) => {
-      const g = getIconicGroup(o.taxon?.iconic_taxon_name);
-      groupCounts[g] = (groupCounts[g] || 0) + 1;
-    });
-    const topGroup = Object.entries(groupCounts).sort((a, b) => b[1] - a[1])[0];
-
-    // Active in the last 7 days
     const now = Date.now();
-    const activeNow = obs.filter((o) => {
-      if (!o.observed_on) return false;
-      const t = Date.parse(o.observed_on);
-      return isFinite(t) && now - t <= 7 * DAY_MS;
-    }).length;
+    const uniqueIds = new Set<number>();
+    const speciesFreq = new Map<number, { name: string; group: string; count: number }>();
+    const activeIds = new Set<number>();
+    const atRiskIds = new Set<number>();
 
-    // At-risk: from species list (has conservation_status), fallback to obs taxa
-    const atRisk = (species ?? []).filter((s) => {
-      const cs = s.taxon.conservation_status?.status?.toUpperCase();
-      return cs && ["CR", "EN", "VU"].includes(cs);
-    }).length;
+    mapPins.forEach((p) => {
+      if (typeof p.taxonId === "number") {
+        uniqueIds.add(p.taxonId);
+        const cur = speciesFreq.get(p.taxonId);
+        if (cur) {
+          cur.count += 1;
+        } else {
+          speciesFreq.set(p.taxonId, {
+            name: p.name,
+            group: p.group || "Other",
+            count: 1,
+          });
+        }
+        if (p.observedOn) {
+          const t = Date.parse(p.observedOn);
+          if (isFinite(t) && now - t <= 7 * DAY_MS) activeIds.add(p.taxonId);
+        }
+        if (p.conservationStatus && ["CR", "EN", "VU", "NT"].includes(p.conservationStatus)) {
+          atRiskIds.add(p.taxonId);
+        }
+      }
+    });
+
+    // Most common = species (not group) with highest visible-marker density
+    type TopSpecies = { name: string; group: string; count: number };
+    const topSpecies: TopSpecies | null = Array.from(speciesFreq.values()).reduce<
+      TopSpecies | null
+    >((best, v) => (!best || v.count > best.count ? v : best), null);
 
     return {
-      uniqueSpecies: uniqueSpecies || species?.length || 0,
-      topGroup,
-      activeNow,
-      atRisk,
+      uniqueSpecies: uniqueIds.size,
+      activeNow: activeIds.size,
+      topSpecies,
+      atRisk: atRiskIds.size,
     };
-  }, [observations, species]);
+  }, [mapPins]);
 
   const topSpecies = species?.slice(0, 3) || [];
 
@@ -266,7 +302,8 @@ export default function HomeScreen() {
                   role: pin.role,
                   roleColor: pin.roleColor,
                   photoUrl: pin.photoUrl,
-                  observationCount: pin.observationCount,
+                  photoMediumUrl: pin.photoMediumUrl,
+                  recentNearbyCount: pin.recentNearbyCount,
                   group: pin.group,
                 });
               }}
@@ -328,36 +365,51 @@ export default function HomeScreen() {
             ))}
           </View>
         ) : (
-          <View style={styles.statsRow}>
-            <StatCard
-              icon="layers"
-              value={stats.uniqueSpecies}
-              label="Species Nearby"
-              color="#4ADE80"
-            />
-            <StatCard
-              icon="zap"
-              value={stats.activeNow}
-              label="Active This Week"
-              color="#22D3EE"
-            />
-            <StatCard
-              icon={
-                stats.topGroup?.[0] === "Birds"
-                  ? "feather"
-                  : stats.topGroup?.[0] === "Plants"
-                    ? "leaf"
-                    : "globe"
-              }
-              value={stats.topGroup?.[1] || 0}
-              label="Most Common"
-              subtitle={stats.topGroup?.[0]}
-              color={
-                stats.topGroup?.[0]
-                  ? GROUP_COLORS[stats.topGroup[0]] || "#A78BFA"
-                  : "#A78BFA"
-              }
-            />
+          <View style={styles.statsGrid}>
+            <View style={styles.statCell}>
+              <StatCard
+                icon="layers"
+                value={stats.uniqueSpecies}
+                label="Species Nearby"
+                color="#4ADE80"
+              />
+            </View>
+            <View style={styles.statCell}>
+              <StatCard
+                icon="zap"
+                value={stats.activeNow}
+                label="Active This Week"
+                color="#22D3EE"
+              />
+            </View>
+            <View style={styles.statCell}>
+              <StatCard
+                icon={
+                  stats.topSpecies?.group === "Birds"
+                    ? "feather"
+                    : stats.topSpecies?.group === "Plants"
+                      ? "leaf"
+                      : "globe"
+                }
+                value={stats.topSpecies?.count || 0}
+                label="Most Common"
+                subtitle={stats.topSpecies?.name}
+                color={
+                  stats.topSpecies?.group
+                    ? GROUP_COLORS[stats.topSpecies.group] || "#A78BFA"
+                    : "#A78BFA"
+                }
+              />
+            </View>
+            <View style={styles.statCell}>
+              <StatCard
+                icon="alert-triangle"
+                value={stats.atRisk}
+                label="At Risk"
+                subtitle={stats.atRisk > 0 ? "Needs protection" : "None on map"}
+                color="#EF4444"
+              />
+            </View>
           </View>
         )}
 
@@ -614,6 +666,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     marginBottom: 24,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 24,
+  },
+  statCell: {
+    width: "48%",
+    flexGrow: 1,
   },
   statSkeleton: {
     flex: 1,

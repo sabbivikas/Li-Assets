@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
@@ -10,12 +10,16 @@ export interface SpeciesPin {
   lat: number;
   lng: number;
   color?: string;
+  /** Low-res square photo (used on the map). */
   photoUrl?: string;
+  /** Higher-res photo loaded on tap to upgrade the bottom sheet. */
+  photoMediumUrl?: string;
   /** 0..1 — drives marker size and ring intensity. */
   importance?: number;
   role?: string;
   group?: string;
-  observationCount?: number;
+  /** Number of recent observations of this taxon in the visible window. */
+  recentNearbyCount?: number;
 }
 
 export interface PinTapPayload {
@@ -24,10 +28,11 @@ export interface PinTapPayload {
   name: string;
   scientificName?: string;
   photoUrl?: string;
+  photoMediumUrl?: string;
   role?: string;
   roleColor?: string;
   group?: string;
-  observationCount?: number;
+  recentNearbyCount?: number;
 }
 
 interface Props {
@@ -327,10 +332,11 @@ function buildLeafletHtml(
         name: p.name,
         scientificName: p.scientificName,
         photoUrl: p.photoUrl,
+        photoMediumUrl: p.photoMediumUrl,
         role: p.role,
         roleColor: p.color,
         group: p.group,
-        observationCount: p.observationCount,
+        recentNearbyCount: p.recentNearbyCount,
       },
     };
     try {
@@ -459,9 +465,12 @@ export function LocationMap({
   onPinSelect,
   selectedPinId,
 }: Props) {
+  // Defer pin updates so rapid changes (location refetches, region pans)
+  // don't thrash the iframe — React batches into a single rebuild.
+  const deferredPins = useDeferredValue(pins);
   const html = useMemo(
-    () => buildLeafletHtml(lat, lng, radiusKm, pins),
-    [lat, lng, radiusKm, pins],
+    () => buildLeafletHtml(lat, lng, radiusKm, deferredPins),
+    [lat, lng, radiusKm, deferredPins],
   );
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
