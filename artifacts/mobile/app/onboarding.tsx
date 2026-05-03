@@ -1533,6 +1533,8 @@ export default function OnboardingScreenRoot() {
             loading={locationLoading}
             disabled={ctaDisabled}
             seed={7}
+            accessibilityLabel={ctaCopy}
+            accessibilityRole="button"
           />
         </Animated.View>
       </View>
