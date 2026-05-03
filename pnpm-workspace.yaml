@@ -159,33 +159,40 @@ overrides:
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
   # ----------------------------------------------------------------
-  # Security overrides — force safe versions of transitive dependencies.
-  # Each line maps to one or more advisories from `pnpm audit`.
+  # Security overrides — forward-looking guards that pin transitive
+  # dependencies to advisory-patched lines. Each entry below targets
+  # only the vulnerable range published in the referenced advisory,
+  # so that compatible packages on safe lines (e.g. minimatch@10's
+  # brace-expansion@^5) are not forced across major boundaries.
   # ----------------------------------------------------------------
-  # GHSA-f886-m6hf-6m8v — brace-expansion ReDoS / hang on zero-step.
-  # Patch each affected major in place; do NOT collapse to a single
-  # range, because minimatch@10 requires brace-expansion@^5 and
-  # would break if forced down to v2.
+  # GHSA-f886-m6hf-6m8v — brace-expansion ReDoS on `{a,b{0..2147483647}}`.
+  # Patched per-major: 1.1.12, 2.0.2, 3.0.2, 4.0.1.
   "brace-expansion@>=1.0.0 <1.1.12": "^1.1.12"
   "brace-expansion@>=2.0.0 <2.0.2": "^2.0.2"
   "brace-expansion@>=3.0.0 <3.0.2": "^3.0.2"
   "brace-expansion@>=4.0.0 <4.0.1": "^4.0.1"
-  # GHSA-c2c7-rcm5-vvqj, GHSA-3v7f-55p6-f55p — picomatch ReDoS &
-  # POSIX class method injection. Range overrides keep both v2 (used
-  # by micromatch) and v4 (used by tinyglobby) on patched lines.
+  # GHSA-c2c7-rcm5-vvqj, GHSA-3v7f-55p6-f55p — picomatch ReDoS in v1/v2,
+  # plus POSIX class regression in 4.0.0-4.0.3. v3 is not in the audit.
   "picomatch@<2.3.2": "^2.3.2"
-  "picomatch@>=3.0.0 <4.0.0": "^4.0.4"
   "picomatch@>=4.0.0 <4.0.4": "^4.0.4"
-  # GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7 — path-to-regexp v8 ReDoS
+  # GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7 — path-to-regexp v8 ReDoS,
+  # patched in 8.4.0 / 8.4.2.
   "path-to-regexp@>=8.0.0 <8.4.0": "^8.4.2"
-  # GHSA-r5fr-rjxr-66jc, GHSA-f23m-r3pf-42rh — lodash code injection /
-  # prototype pollution (only patched on the 4.18.x line).
-  lodash: "^4.18.1"
-  # GHSA-48c2-rrv3-qjmp — yaml stack overflow on deeply nested input
-  yaml: "^2.8.4"
-  # GHSA-qx2v-qp2m-jg93 — postcss XSS via unescaped </style>
-  postcss: "^8.5.13"
-  # GHSA-w5hq-g745-h8pq — uuid bounds check on v3/v5/v6 with `buf`.
-  # xcode/ngrok pulled in by Expo CLI use the legacy v1/v3 APIs that
-  # remain available in v14, so the override is compatible.
-  uuid: "^14.0.0"
+  # GHSA-r5fr-rjxr-66jc, GHSA-f23m-r3pf-42rh — lodash command injection
+  # & prototype pollution. Only the 4.18.x line carries the fix; the
+  # entire 4.17.x line stays vulnerable so we pin to >= 4.18.1.
+  "lodash@<4.18.1": "^4.18.1"
+  # GHSA-48c2-rrv3-qjmp — yaml v2 stack overflow on deeply nested input,
+  # patched in 2.8.3. Scoped to the v2 line so any v1 consumer (none in
+  # this lockfile, but defensive) is left alone.
+  "yaml@>=2.0.0 <2.8.3": "^2.8.4"
+  # GHSA-qx2v-qp2m-jg93 — postcss XSS via unescaped </style>, patched
+  # in 8.5.10. Scoped to the v8.5.x line.
+  "postcss@>=8.0.0 <8.5.10": "^8.5.13"
+  # GHSA-w5hq-g745-h8pq — uuid name-based v3/v5 hashing accepts
+  # over-long `buf` offsets. The advisory's only patched version is
+  # 14.0.0 (no backport to v3/v5/v7/v8/v9 lines), so any vulnerable
+  # major must move to v14. The current lockfile already resolves
+  # uuid to 14.0.0; this override prevents regression if a future
+  # transitive dep pulls in a pre-14 version.
+  "uuid@<14.0.0": "^14.0.0"

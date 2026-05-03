@@ -154,13 +154,12 @@ overrides:
   brace-expansion@>=3.0.0 <3.0.2: ^3.0.2
   brace-expansion@>=4.0.0 <4.0.1: ^4.0.1
   picomatch@<2.3.2: ^2.3.2
-  picomatch@>=3.0.0 <4.0.0: ^4.0.4
   picomatch@>=4.0.0 <4.0.4: ^4.0.4
   path-to-regexp@>=8.0.0 <8.4.0: ^8.4.2
-  lodash: ^4.18.1
-  yaml: ^2.8.4
-  postcss: ^8.5.13
-  uuid: ^14.0.0
+  lodash@<4.18.1: ^4.18.1
+  yaml@>=2.0.0 <2.8.3: ^2.8.4
+  postcss@>=8.0.0 <8.5.10: ^8.5.13
+  uuid@<14.0.0: ^14.0.0
 
 importers:
 
@@ -5104,6 +5103,10 @@ packages:
     resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
 
+  picomatch@3.0.2:
+    resolution: {integrity: sha512-cfDHL6LStTEKlNilboNtobT/kEa30PtAf2Q1OgszfrG/rpVl1xaFWT9ktfkS306GmHgmnad1Sw4wabhlvFtsTw==}
+    engines: {node: '>=10'}
+
   picomatch@4.0.4:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
@@ -6254,6 +6257,10 @@ packages:
     resolution: {integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==}
     engines: {node: '>=18'}
 
+  yaml@1.10.3:
+    resolution: {integrity: sha512-vIYeF1u3CjlhAFekPPAk2h/Kv4T3mAkMox5OymRiJQB0spDP10LHvt+K7G9Ny6NuuMAb25/6n1qyUjAcGNf/AA==}
+    engines: {node: '>= 6'}
+
   yaml@2.8.4:
     resolution: {integrity: sha512-ml/JPOj9fOQK8RNnWojA67GbZ0ApXAUlN2UQclwv2eVgTgn7O9gg9o7paZWKMp4g0H3nTLtS9LVzhkpOFIKzog==}
     engines: {node: '>= 14.6'}
@@ -7132,7 +7139,7 @@ snapshots:
       node-forge: 1.4.0
       npm-package-arg: 11.0.3
       ora: 3.4.0
-      picomatch: 4.0.4
+      picomatch: 3.0.2
       pretty-bytes: 5.6.0
       pretty-format: 29.7.0
       progress: 2.0.3
@@ -7416,7 +7423,7 @@ snapshots:
       '@expo/ngrok-bin': 2.3.42
       got: 11.8.6
       uuid: 14.0.0
-      yaml: 2.8.4
+      yaml: 1.10.3
 
   '@expo/osascript@2.4.2':
     dependencies:
@@ -11853,6 +11860,8 @@ snapshots:
 
   picomatch@2.3.2: {}
 
+  picomatch@3.0.2: {}
+
   picomatch@4.0.4: {}
 
   pino-abstract-transport@2.0.0:
@@ -13021,6 +13030,8 @@ snapshots:
   yallist@3.1.1: {}
 
   yallist@5.0.0: {}
+
+  yaml@1.10.3: {}
 
   yaml@2.8.4: {}
 
