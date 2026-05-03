@@ -1,0 +1,144 @@
+Redesign and rebuild the Home Screen of the React Native Expo app “Life Web”.
+
+Goal:
+The Home Screen must feel like a living ecosystem. The map is the core experience and must display real species visually, not abstract markers.
+
+Use iNaturalist data to render actual species images on the map.
+
+----------------------------------------
+MAP DESIGN (CRITICAL CHANGE)
+----------------------------------------
+
+Replace generic clusters with REAL SPECIES VISUALIZATION.
+
+Each map marker should represent a real observed species.
+
+----------------------------------------
+MARKER SYSTEM
+----------------------------------------
+
+1. Species Markers (Primary Layer)
+- Use circular image markers
+- Image = species photo from iNaturalist
+- Size varies based on:
+  - observation frequency
+  - importance (pollinators, keystone species)
+- Add subtle glowing ring around marker
+
+2. Density Handling (VERY IMPORTANT)
+DO NOT show hundreds of images.
+
+Implement clustering:
+
+- When zoomed out:
+  - show stacked circular markers (cluster)
+  - cluster preview shows:
+    - 3–5 overlapping species images
+    - small count badge (+12)
+
+- When zoomed in:
+  - expand into individual species markers
+
+3. Marker Interaction
+- Tap marker:
+  - marker scales up (1.1x)
+  - glowing highlight appears
+  - bottom sheet opens
+
+Bottom sheet includes:
+- species name
+- role (pollinator, predator, etc.)
+- “See impact” CTA
+
+----------------------------------------
+VISUAL QUALITY RULES
+----------------------------------------
+
+- Use high-quality species images
+- Add soft blur shadow behind markers
+- Use glassmorphism or subtle dark background for overlays
+- Maintain consistent circular cropping
+- Avoid visual clutter
+
+----------------------------------------
+MAP ANIMATIONS
+----------------------------------------
+
+- Markers gently float (very subtle vertical motion)
+- Glow pulses slowly (3–4 second cycle)
+- Cluster expands smoothly into individual markers
+- Selected marker:
+  - scale up
+  - ring animation
+  - slight bounce
+
+----------------------------------------
+DATA → MAP SYNC (MANDATORY)
+----------------------------------------
+
+Everything must match the map:
+
+- Species count = number of unique species shown
+- “Most common” = most visible marker density
+- “Active now” = species with recent observations
+- “At risk” = species with declining trend
+
+No static or fake numbers.
+
+----------------------------------------
+INSIGHT SECTION (UNCHANGED BUT IMPORTANT)
+----------------------------------------
+
+Below map, show:
+
+“What’s happening here”
+
+Generate insights like:
+- “Pollinator activity slightly down”
+- “Bird observations stable”
+- “Flowering species appearing earlier”
+
+Insights must be derived from same dataset as map.
+
+----------------------------------------
+PERFORMANCE RULES (VERY IMPORTANT)
+----------------------------------------
+
+- Lazy load species images
+- Use low-res thumbnails first, then upgrade
+- Limit visible markers to top N species (e.g., 20–30)
+- Use clustering aggressively when zoomed out
+- Cache images locally
+- Debounce map region changes
+
+----------------------------------------
+USER EXPERIENCE GOAL
+----------------------------------------
+
+User opens app → sees:
+
+- Real animals and plants around them
+- Not abstract data
+- Not charts
+
+User should feel:
+
+“These are real living things around me”
+
+----------------------------------------
+DO NOT:
+----------------------------------------
+
+- Do not show generic pins
+- Do not overload map with too many images
+- Do not break performance
+- Do not disconnect map from insights
+
+----------------------------------------
+DO:
+----------------------------------------
+
+- Make the map feel alive
+- Make species feel real and important
+- Make interactions smooth and premium
+- Make everything derive from real data
