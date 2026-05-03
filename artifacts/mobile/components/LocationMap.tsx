@@ -146,7 +146,6 @@ function buildLeafletHtml(
     100% { transform: scale(1.6); opacity: 0; }
   }
 
-  /* Photo pin wrapper — gentle floating animation */
   .pin-wrap {
     animation: float var(--float-dur, 4.2s) ease-in-out infinite;
     animation-delay: var(--float-delay, 0s);
@@ -158,7 +157,6 @@ function buildLeafletHtml(
     50% { transform: translateY(-3px); }
   }
 
-  /* Photo pin — circular avatar with tinted glowing ring */
   .photo-pin {
     width: 100%;
     height: 100%;
@@ -214,7 +212,6 @@ function buildLeafletHtml(
     z-index: 999 !important;
   }
 
-  /* Photo-stack cluster bubble */
   .photo-cluster {
     position: relative;
     height: 38px;
@@ -397,42 +394,54 @@ function buildLeafletHtml(
     },
   });
 
-  pins.slice(0, 30).forEach(function(p, idx) {
+  var VISIBLE_CAP = 30;
+  pins.forEach(function(p, idx) {
     var url = safeUrl(p.photoUrl);
     if (!url) return;
-    var ring = p.color || '#FBBF24';
-    var imp = Math.max(0, Math.min(1, typeof p.importance === 'number' ? p.importance : 0.4));
-    var size = Math.round(30 + imp * 22);
-    var glow = Math.round(10 + imp * 14);
-    var delay = ((idx * 137) % 1000) / 1000;
-    var dur = 3.6 + ((idx * 53) % 100) / 80;
-    var html =
-      '<div class="pin-wrap" style="--float-delay:' + delay.toFixed(2) + 's;--float-dur:' + dur.toFixed(2) + 's;width:' + size + 'px;height:' + size + 'px;">' +
-        '<div class="photo-pin" style="--ring:' + ring + ';--glow:' + glow + 'px;">' +
-          '<img loading="lazy" decoding="async" src="' + url + '" alt="" />' +
-        '</div>' +
-      '</div>';
-    var marker = L.marker([p.lat, p.lng], {
-      icon: L.divIcon({
-        className: 'species-pin-wrap',
-        html: html,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
-      }),
-      _photoUrl: url,
-      bubblingMouseEvents: false,
-    });
-    marker.on('click', function() {
-      var el = marker.getElement();
-      var inner = el ? el.querySelector('.photo-pin') : null;
-      if (inner) {
-        setSelected(inner);
-        inner.classList.remove('bounce');
-        void inner.offsetWidth;
-        inner.classList.add('bounce');
-      }
-      postPinTap(p);
-    });
+    var marker;
+    if (idx < VISIBLE_CAP) {
+      var ring = p.color || '#FBBF24';
+      var imp = Math.max(0, Math.min(1, typeof p.importance === 'number' ? p.importance : 0.4));
+      var size = Math.round(30 + imp * 22);
+      var glow = Math.round(10 + imp * 14);
+      var delay = ((idx * 137) % 1000) / 1000;
+      var dur = 3.6 + ((idx * 53) % 100) / 80;
+      var html =
+        '<div class="pin-wrap" style="--float-delay:' + delay.toFixed(2) + 's;--float-dur:' + dur.toFixed(2) + 's;width:' + size + 'px;height:' + size + 'px;">' +
+          '<div class="photo-pin" style="--ring:' + ring + ';--glow:' + glow + 'px;">' +
+            '<img loading="lazy" decoding="async" src="' + url + '" alt="" />' +
+          '</div>' +
+        '</div>';
+      marker = L.marker([p.lat, p.lng], {
+        icon: L.divIcon({
+          className: 'species-pin-wrap',
+          html: html,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        }),
+        _photoUrl: url,
+        bubblingMouseEvents: false,
+      });
+      marker.on('click', function() {
+        var el = marker.getElement();
+        var inner = el ? el.querySelector('.photo-pin') : null;
+        if (inner) {
+          setSelected(inner);
+          inner.classList.remove('bounce');
+          void inner.offsetWidth;
+          inner.classList.add('bounce');
+        }
+        postPinTap(p);
+      });
+    } else {
+      marker = L.marker([p.lat, p.lng], {
+        icon: L.divIcon({ className: 'overflow-pin', html: '', iconSize: [1, 1] }),
+        _photoUrl: url,
+        opacity: 0,
+        interactive: false,
+        keyboard: false,
+      });
+    }
     cluster.addLayer(marker);
   });
   map.addLayer(cluster);

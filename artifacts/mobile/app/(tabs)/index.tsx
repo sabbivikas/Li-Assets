@@ -121,7 +121,6 @@ export default function HomeScreen() {
         const taxon = o.taxon;
         const square = taxon?.default_photo?.square_url;
         const medium = taxon?.default_photo?.medium_url;
-        // Photo-only markers — we never render generic dots on the home map.
         if (!square && !medium) return null;
 
         const primaryRole = cachedRoles(
@@ -158,7 +157,7 @@ export default function HomeScreen() {
 
     return pins
       .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
-      .slice(0, 30);
+      .slice(0, 100);
   }, [observations]);
 
   const insights = useMemo(() => generateInsights(mapPins), [mapPins]);
