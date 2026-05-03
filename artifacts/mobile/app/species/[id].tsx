@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Linking,
   Platform,
@@ -44,6 +44,7 @@ import {
   getConservationLabel,
   getIconicGroup,
 } from "@/services/iNaturalist";
+import { unlockCard } from "@/services/lifeCards";
 
 const CHART_HEIGHT = 90;
 
@@ -81,6 +82,17 @@ export default function SpeciesDetailScreen() {
   });
 
   const isLoading = loadingTaxon || loadingObs || loadingHist;
+
+  // Discovery unlock — fires once when the species + nearby observations resolve.
+  useEffect(() => {
+    if (!taxon) return;
+    unlockCard({
+      method: "discovery",
+      taxon,
+      nearbyCount: observations?.length ?? 0,
+      lastSeenDate: observations?.[0]?.observed_on,
+    }).catch(() => {});
+  }, [taxon, observations]);
 
   const photoUrl =
     taxon?.taxon_photos?.[0]?.photo?.large_url ||

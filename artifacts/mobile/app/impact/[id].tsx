@@ -28,6 +28,7 @@ import {
 } from "@/components/paint";
 import { buildImpactChain } from "@/services/ecologyModel";
 import { fetchSpeciesById } from "@/services/iNaturalist";
+import { unlockCard } from "@/services/lifeCards";
 
 const SEVERITY_COLOR: Record<string, string> = {
   high: PAINT.red,
@@ -68,6 +69,12 @@ export default function ImpactScreen() {
       if (!nodeAnims[i]) nodeAnims[i] = new Animated.Value(0);
     });
   }, [chain]);
+
+  // Impact unlock — fires once the species data is available on the impact screen.
+  useEffect(() => {
+    if (!taxon) return;
+    unlockCard({ method: "impact", taxon }).catch(() => {});
+  }, [taxon]);
 
   function startAnimation() {
     if (!chain || animationStarted) return;

@@ -23,6 +23,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "waveform", selected: "waveform" }} />
         <Label>Signals</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="cards">
+        <Icon sf={{ default: "rectangle.stack", selected: "rectangle.stack.fill" }} />
+        <Label>Cards</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="reports">
         <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
         <Label>Reports</Label>
@@ -101,6 +105,18 @@ function ClassicTabLayout() {
               <SymbolView name="waveform" tintColor={color} size={24} />
             ) : (
               <Feather name="activity" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="cards"
+        options={{
+          title: "Cards",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="rectangle.stack" tintColor={color} size={24} />
+            ) : (
+              <Feather name="layers" size={22} color={color} />
             ),
         }}
       />
