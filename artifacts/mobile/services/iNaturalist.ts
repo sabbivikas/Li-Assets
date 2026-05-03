@@ -151,7 +151,7 @@ export async function fetchRecentObservations(
     lng,
     radius: radiusKm,
     quality_grade: "research",
-    per_page: 20,
+    per_page: 100,
     order: "desc",
     order_by: "observed_on",
     d1: thirtyDaysAgo.toISOString().split("T")[0],

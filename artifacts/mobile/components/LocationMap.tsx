@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
@@ -378,13 +378,15 @@ function buildLeafletHtml(
     },
   });
 
-  pins.slice(0, 30).forEach(function(p, idx) {
+  var TOP = 30;
+  pins.forEach(function(p, idx) {
     var url = safeUrl(p.photoUrl);
     if (!url) return;
     var ring = p.color || '#FBBF24';
+    var isOverflow = idx >= TOP;
     var imp = Math.max(0, Math.min(1, typeof p.importance === 'number' ? p.importance : 0.4));
-    var size = Math.round(30 + imp * 22);
-    var glow = Math.round(10 + imp * 14);
+    var size = isOverflow ? 22 : Math.round(30 + imp * 22);
+    var glow = isOverflow ? 6 : Math.round(10 + imp * 14);
     var delay = ((idx * 137) % 1000) / 1000;
     var dur = 3.6 + ((idx * 53) % 100) / 80;
     var html =
@@ -431,10 +433,14 @@ export function LocationMap({
   onPinSelect,
   selectedPinId,
 }: Props) {
-  const deferredPins = useDeferredValue(pins);
+  const [debouncedPins, setDebouncedPins] = useState(pins);
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedPins(pins), 250);
+    return () => clearTimeout(id);
+  }, [pins]);
   const html = useMemo(
-    () => buildLeafletHtml(lat, lng, radiusKm, deferredPins),
-    [lat, lng, radiusKm, deferredPins],
+    () => buildLeafletHtml(lat, lng, radiusKm, debouncedPins),
+    [lat, lng, radiusKm, debouncedPins],
   );
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);

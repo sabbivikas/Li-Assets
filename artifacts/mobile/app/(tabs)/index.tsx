@@ -156,15 +156,11 @@ export default function HomeScreen() {
       })
       .filter((p): p is NonNullable<typeof p> => p !== null);
 
-    return pins
-      .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
-      .slice(0, 25);
+    return pins.sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0));
   }, [observations]);
 
   const insights = useMemo(() => generateInsights(mapPins), [mapPins]);
 
-  // Stats are derived from the EXACT rendered map dataset (capped 25 pins)
-  // so map and cards tell the same story.
   const stats = useMemo(() => {
     const now = Date.now();
     const uniqueIds = new Set<number>();
@@ -243,7 +239,7 @@ export default function HomeScreen() {
             </View>
           </View>
           <Pressable
-            onPress={() => router.push("/(tabs)/species" as never)}
+            onPress={() => router.push("/(tabs)/species")}
             style={styles.exploreBtn}
           >
             <Feather name="compass" size={18} color="#4ADE80" />
@@ -399,7 +395,7 @@ export default function HomeScreen() {
                       { backgroundColor: ins.color + "1A" },
                     ]}
                   >
-                    <Feather name={ins.icon as never} size={15} color={ins.color} />
+                    <Feather name={ins.icon as keyof typeof Feather.glyphMap} size={15} color={ins.color} />
                   </View>
                   <View style={styles.insightText}>
                     <Text style={styles.insightTitle}>{ins.title}</Text>
@@ -415,7 +411,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Most Observed Nearby</Text>
-            <Pressable onPress={() => router.push("/(tabs)/species" as never)}>
+            <Pressable onPress={() => router.push("/(tabs)/species")}>
               <Text style={styles.seeAll}>See all</Text>
             </Pressable>
           </View>
@@ -447,7 +443,7 @@ export default function HomeScreen() {
                 styles.actionCard,
                 { backgroundColor: "#1A0F0F", borderColor: "#7F1D1D" },
               ]}
-              onPress={() => router.push("/(tabs)/species" as never)}
+              onPress={() => router.push("/(tabs)/species")}
             >
               <Feather name="alert-triangle" size={20} color="#EF4444" />
               <View style={styles.actionText}>
@@ -466,7 +462,7 @@ export default function HomeScreen() {
               styles.actionCard,
               { backgroundColor: "#0F1824", borderColor: "#1E293B" },
             ]}
-            onPress={() => router.push("/(tabs)/signals" as never)}
+            onPress={() => router.push("/(tabs)/signals")}
           >
             <Feather name="activity" size={20} color="#22D3EE" />
             <View style={styles.actionText}>
@@ -483,7 +479,7 @@ export default function HomeScreen() {
               styles.actionCard,
               { backgroundColor: "#0F1824", borderColor: "#1E293B" },
             ]}
-            onPress={() => router.push("/(tabs)/reports" as never)}
+            onPress={() => router.push("/(tabs)/reports")}
           >
             <Feather name="file-text" size={20} color="#FBBF24" />
             <View style={styles.actionText}>

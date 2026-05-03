@@ -41,9 +41,11 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
   const opacity = useSharedValue(0);
   const startY = useSharedValue(0);
   const [hiResLoaded, setHiResLoaded] = useState(false);
+  const [rendered, setRendered] = useState<SpeciesSelection | null>(selection);
 
   useEffect(() => {
     if (selection) {
+      setRendered(selection);
       setHiResLoaded(false);
       translateY.value = withSpring(0, { damping: 22, stiffness: 220, mass: 0.9 });
       opacity.value = withTiming(1, { duration: 220 });
@@ -52,7 +54,9 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
         duration: 240,
         easing: Easing.bezier(0.4, 0, 0.2, 1),
       });
-      opacity.value = withTiming(0, { duration: 200 });
+      opacity.value = withTiming(0, { duration: 200 }, (done) => {
+        if (done) runOnJS(setRendered)(null);
+      });
     }
   }, [selection, opacity, translateY]);
 
@@ -84,21 +88,24 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
     });
 
   function handleSeeImpact() {
-    const taxonId = selection?.taxonId;
+    const taxonId = rendered?.taxonId;
     onClose();
     if (taxonId) {
-      setTimeout(() => router.push(`/impact/${taxonId}` as never), 80);
+      setTimeout(
+        () => router.push({ pathname: "/impact/[id]", params: { id: String(taxonId) } }),
+        80,
+      );
     }
   }
 
   const displayPhoto =
-    (hiResLoaded && selection?.photoMediumUrl) ||
-    selection?.photoUrl ||
-    selection?.photoMediumUrl;
+    (hiResLoaded && rendered?.photoMediumUrl) ||
+    rendered?.photoUrl ||
+    rendered?.photoMediumUrl;
 
   return (
     <Modal
-      visible={!!selection}
+      visible={!!rendered}
       transparent
       statusBarTranslucent
       animationType="none"
@@ -110,18 +117,16 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
       <GestureDetector gesture={panGesture}>
         <Animated.View style={[styles.sheet, sheetStyle]}>
           <View style={styles.handle} />
-          {selection && (
+          {rendered && (
             <View style={styles.body}>
               {displayPhoto ? (
                 <View style={styles.photoWrap}>
                   <Image source={{ uri: displayPhoto }} style={styles.photo} />
-                  {/* Hidden upgrade loader — renders nothing, just preloads
-                      the medium image so we can swap on its onLoad. */}
-                  {selection.photoMediumUrl &&
+                  {rendered.photoMediumUrl &&
                     !hiResLoaded &&
-                    selection.photoMediumUrl !== selection.photoUrl && (
+                    rendered.photoMediumUrl !== rendered.photoUrl && (
                       <Image
-                        source={{ uri: selection.photoMediumUrl }}
+                        source={{ uri: rendered.photoMediumUrl }}
                         style={styles.hiddenUpgrade}
                         onLoad={() => setHiResLoaded(true)}
                       />
@@ -134,52 +139,52 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
               )}
               <View style={styles.info}>
                 <Text style={styles.name} numberOfLines={1}>
-                  {selection.name}
+                  {rendered.name}
                 </Text>
-                {selection.scientificName && (
+                {rendered.scientificName && (
                   <Text style={styles.sci} numberOfLines={1}>
-                    {selection.scientificName}
+                    {rendered.scientificName}
                   </Text>
                 )}
                 <View style={styles.metaRow}>
-                  {selection.role && (
+                  {rendered.role && (
                     <View
                       style={[
                         styles.rolePill,
-                        { backgroundColor: (selection.roleColor || "#4ADE80") + "22" },
+                        { backgroundColor: (rendered.roleColor || "#4ADE80") + "22" },
                       ]}
                     >
                       <View
                         style={[
                           styles.roleDot,
-                          { backgroundColor: selection.roleColor || "#4ADE80" },
+                          { backgroundColor: rendered.roleColor || "#4ADE80" },
                         ]}
                       />
                       <Text
                         style={[
                           styles.roleText,
-                          { color: selection.roleColor || "#4ADE80" },
+                          { color: rendered.roleColor || "#4ADE80" },
                         ]}
                       >
-                        {selection.role}
+                        {rendered.role}
                       </Text>
                     </View>
                   )}
-                  {typeof selection.recentNearbyCount === "number" &&
-                    selection.recentNearbyCount > 0 && (
+                  {typeof rendered.recentNearbyCount === "number" &&
+                    rendered.recentNearbyCount > 0 && (
                       <View style={styles.countPill}>
                         <Feather name="eye" size={11} color="#94A3B8" />
                         <Text style={styles.countText}>
-                          {selection.recentNearbyCount}{" "}
-                          {selection.recentNearbyCount === 1
+                          {rendered.recentNearbyCount}{" "}
+                          {rendered.recentNearbyCount === 1
                             ? "sighting nearby"
                             : "sightings nearby"}
                         </Text>
                       </View>
                     )}
-                  {selection.group && (
+                  {rendered.group && (
                     <View style={styles.countPill}>
-                      <Text style={styles.countText}>{selection.group}</Text>
+                      <Text style={styles.countText}>{rendered.group}</Text>
                     </View>
                   )}
                 </View>
@@ -188,11 +193,11 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
           )}
           <Pressable
             onPress={handleSeeImpact}
-            disabled={!selection?.taxonId}
+            disabled={!rendered?.taxonId}
             style={({ pressed }) => [
               styles.cta,
               { opacity: pressed ? 0.85 : 1 },
-              !selection?.taxonId && styles.ctaDisabled,
+              !rendered?.taxonId && styles.ctaDisabled,
             ]}
           >
             <Feather name="activity" size={15} color="#080C14" />
