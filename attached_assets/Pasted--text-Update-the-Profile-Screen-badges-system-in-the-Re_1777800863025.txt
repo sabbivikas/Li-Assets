@@ -1,0 +1,244 @@
+```text
+Update the Profile Screen badges system in the React Native Expo app “Life Web”.
+
+Goal:
+Badges should feel collectible, like Pokémon gym badges, but elegant, nature-focused, and meaningful. Users should earn badges through real biodiversity discovery, learning, and civic action.
+
+Do NOT make it childish.
+Do NOT copy Pokémon visuals directly.
+Use the idea of collectible achievement badges, but make it original and premium.
+
+----------------------------------------
+BADGE SYSTEM CONCEPT
+----------------------------------------
+
+Create a “Badge Case” on the Profile Screen.
+
+Badges are earned through:
+- discovering species
+- unlocking Life Cards
+- viewing impact simulations
+- finding missing species signals
+- generating reports
+- contributing observations
+- exploring different species groups
+
+Each badge should have:
+- badge name
+- icon
+- rarity
+- unlock condition
+- progress
+- locked/unlocked state
+- earned date
+- short meaning statement
+
+----------------------------------------
+BADGE CATEGORIES
+----------------------------------------
+
+1. Explorer Badges
+Earned by discovering species near the user.
+
+Examples:
+- First Discovery
+- Local Explorer
+- 25 Species Found
+- 100 Species Found
+
+2. Life Web Badges
+Earned by understanding ecosystem roles.
+
+Examples:
+- Pollinator Protector
+- Decomposer Defender
+- Amphibian Watcher
+- Bird Guardian
+- Plant Steward
+
+3. Signal Badges
+Earned by detecting biodiversity signals.
+
+Examples:
+- Missing Species Watch
+- Seasonal Shift Finder
+- Decline Signal Spotted
+- Data Gap Hunter
+
+4. Civic Badges
+Earned by creating or sharing reports.
+
+Examples:
+- First Report
+- Community Voice
+- Policy Messenger
+- Local Advocate
+
+5. Collection Badges
+Earned by completing groups of Life Cards.
+
+Examples:
+- Insect Set Complete
+- Bird Set Complete
+- Fungi Set Complete
+- Keystone Collection
+
+----------------------------------------
+BADGE UI DESIGN
+----------------------------------------
+
+Create a premium “Badge Case” section.
+
+Design:
+- grid layout
+- circular or shield-shaped badges
+- metallic / glassy look
+- subtle glowing border for unlocked badges
+- locked badges appear dimmed with silhouette
+- progress ring around partially completed badges
+- badge rarity reflected by border style
+
+Rarity levels:
+- Common
+- Uncommon
+- Rare
+- Keystone
+- Legacy
+
+Visual style:
+- nature-inspired
+- elegant collectible
+- not cartoonish
+- polished enough to screenshot and share
+
+----------------------------------------
+BADGE INTERACTION
+----------------------------------------
+
+When user taps a badge:
+Open Badge Detail Modal.
+
+Badge Detail Modal shows:
+- large badge
+- name
+- rarity
+- unlock condition
+- current progress
+- why it matters
+- earned date if unlocked
+- related Life Cards
+- CTA:
+  - “Explore more”
+  - “View related species”
+  - “Generate report” if civic related
+
+----------------------------------------
+UNLOCK ANIMATION
+----------------------------------------
+
+When a badge is earned:
+- show full-screen badge reveal animation
+- dark blurred background
+- badge appears small then scales up
+- glow ring expands outward
+- particles or leaf sparkles appear
+- haptic feedback
+- text appears:
+  “Badge Earned”
+  “[Badge Name]”
+- button:
+  “View Badge Case”
+
+Use react-native-reanimated for:
+- scale
+- opacity
+- rotation
+- glow pulse
+- particles if possible
+
+----------------------------------------
+PROFILE SCREEN PLACEMENT
+----------------------------------------
+
+On Profile Screen:
+
+After Impact Summary, add:
+
+Section title:
+“Badge Case”
+
+Subtext:
+“Collect badges by discovering and protecting your local life web.”
+
+Show:
+- 6 featured badges
+- locked and unlocked mix
+- progress indicators
+
+CTA:
+“View All Badges”
+
+Create full Badges Screen:
+- tabs by category
+- filters by rarity
+- locked/unlocked toggle
+
+----------------------------------------
+BADGE PROGRESSION LOGIC
+----------------------------------------
+
+Use real user data from:
+- unlocked Life Cards
+- species discovered
+- impact simulations viewed
+- reports generated
+- signals detected
+- iNaturalist-powered local species data
+
+Examples:
+- First Discovery unlocks after first Life Card
+- Pollinator Protector unlocks after 5 pollinator Life Cards
+- Missing Species Watch unlocks after user views 3 missing species
+- First Report unlocks after generating first report
+- Policy Messenger unlocks after user opens approved email report
+- Keystone Collection unlocks after unlocking 5 keystone species cards
+
+Store badge data locally:
+- badgeId
+- unlocked
+- progress
+- earnedDate
+- category
+- rarity
+
+----------------------------------------
+SHAREABLE BADGES
+----------------------------------------
+
+Add share feature for unlocked badges.
+
+Share card includes:
+- badge image
+- badge name
+- short meaning
+- Life Web branding
+- location generalized to city/region
+
+Example:
+“I earned Pollinator Protector by discovering pollinators in my local life web.”
+
+----------------------------------------
+IMPORTANT PRODUCT RULE
+----------------------------------------
+
+Badges should reward meaningful behavior, not empty app usage.
+
+They should make the user feel:
+- proud
+- curious
+- connected to local nature
+- motivated to keep exploring
+
+The badge system should feel like:
+“Pokémon badges for protecting real life.”
+```

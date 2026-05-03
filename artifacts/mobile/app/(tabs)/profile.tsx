@@ -2,8 +2,8 @@ import { useAuth, useUser } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,21 +16,24 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BadgeMedal } from "@/components/BadgeMedal";
 import {
-  Bee,
-  Bird,
   CrayonUnderline,
   Flower,
-  Frog,
   HAND_FONT,
   LABEL_FONT,
-  Mushroom,
   PaperBackground,
   PAINT,
   Sparkle,
   WobbleBox,
 } from "@/components/paint";
 import { useLocation } from "@/context/LocationContext";
+import {
+  computeBadgeStates,
+  getFeaturedBadges,
+} from "@/services/badges";
+import { loadCards, type StoredCard } from "@/services/lifeCards";
+import { loadReports, type SavedReport } from "@/services/savedReports";
 
 function initialsFor(name: string | null | undefined, email: string | undefined): string {
   const source = (name ?? email ?? "").trim();
@@ -43,14 +46,6 @@ function initialsFor(name: string | null | undefined, email: string | undefined)
   return letters.toUpperCase();
 }
 
-const BADGES = [
-  { Icon: Bee, label: "Pollinator pal", color: PAINT.sun },
-  { Icon: Bird, label: "Bird watcher", color: PAINT.blue },
-  { Icon: Flower, label: "Flower friend", color: PAINT.pink },
-  { Icon: Frog, label: "Pond pioneer", color: PAINT.grass },
-  { Icon: Mushroom, label: "Fungi finder", color: PAINT.red },
-];
-
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -58,6 +53,31 @@ export default function ProfileScreen() {
   const { user, isLoaded } = useUser();
   const { cityName, radius } = useLocation();
   const [busy, setBusy] = useState(false);
+  const [cards, setCards] = useState<StoredCard[]>([]);
+  const [reports, setReports] = useState<SavedReport[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      void (async () => {
+        const [c, r] = await Promise.all([loadCards(), loadReports()]);
+        if (alive) {
+          setCards(c);
+          setReports(r);
+        }
+      })();
+      return () => {
+        alive = false;
+      };
+    }, [])
+  );
+
+  const badgeStates = useMemo(
+    () => computeBadgeStates({ cards, reports }),
+    [cards, reports]
+  );
+  const featured = useMemo(() => getFeaturedBadges(badgeStates), [badgeStates]);
+  const totalUnlocked = badgeStates.filter((b) => b.unlocked).length;
 
   const onSignOut = useCallback(async () => {
     if (busy) return;
@@ -172,27 +192,46 @@ export default function ProfileScreen() {
           <Text style={styles.statsLabel}>est. 2026 · seedling rank</Text>
         </WobbleBox>
 
-        {/* Badges */}
-        <Text style={styles.sectionTitle}>badges earned</Text>
-        <CrayonUnderline width={140} color={PAINT.sun} seed={3} />
+        {/* Badge Case */}
+        <View style={styles.badgeCaseHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>badge case</Text>
+            <CrayonUnderline width={130} color={PAINT.sun} seed={3} />
+          </View>
+          <View style={styles.badgeCount}>
+            <Feather name="award" size={13} color={PAINT.grassDeep} />
+            <Text style={styles.badgeCountText}>
+              {totalUnlocked} / {badgeStates.length}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.badgeCaseSub}>
+          Collect badges by discovering and protecting your local life web.
+        </Text>
         <View style={styles.badges}>
-          {BADGES.map((b, i) => (
-            <View key={b.label} style={styles.badgeWrap}>
-              <WobbleBox
-                width={96}
-                height={96}
-                fill="white"
-                seed={i * 3 + 5}
-                padding={6}
-              >
-                <View style={styles.badgeInner}>
-                  <b.Icon size={50} />
-                </View>
-              </WobbleBox>
-              <Text style={styles.badgeLabel}>{b.label}</Text>
-            </View>
+          {featured.map((s, i) => (
+            <Pressable
+              key={s.def.id}
+              onPress={() => {
+                if (Platform.OS !== "web") void Haptics.selectionAsync();
+                router.push(`/badges/${s.def.id}`);
+              }}
+              style={styles.badgeWrap}
+            >
+              <BadgeMedal state={s} size="md" seed={i * 3 + 5} showLabel />
+            </Pressable>
           ))}
         </View>
+        <Pressable
+          onPress={() => {
+            if (Platform.OS !== "web") void Haptics.selectionAsync();
+            router.push("/badges");
+          }}
+          style={styles.viewAllBtn}
+        >
+          <Text style={styles.viewAllText}>View all badges</Text>
+          <Feather name="arrow-right" size={16} color={PAINT.ink} />
+        </Pressable>
 
         {/* Sign out */}
         <Text style={styles.sectionTitle}>account</Text>
@@ -330,6 +369,38 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginTop: 8,
   },
+  badgeCaseHeader: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  badgeCount: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "white",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1.4,
+    borderColor: PAINT.grassDeep,
+    marginBottom: 4,
+  },
+  badgeCountText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.grassDeep,
+  },
+  badgeCaseSub: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkSoft,
+    alignSelf: "flex-start",
+    marginTop: 6,
+    lineHeight: 17,
+  },
   badges: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -340,13 +411,24 @@ const styles = StyleSheet.create({
     rowGap: 18,
   },
   badgeWrap: { width: "31%", alignItems: "center" },
-  badgeInner: { flex: 1, alignItems: "center", justifyContent: "center" },
-  badgeLabel: {
-    fontFamily: LABEL_FONT,
-    fontSize: 13,
-    color: PAINT.inkSoft,
-    textAlign: "center",
-    marginTop: 4,
+  viewAllBtn: {
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginTop: 10,
+    marginBottom: 4,
+    borderWidth: 1.5,
+    borderColor: PAINT.ink,
+    borderRadius: 18,
+    backgroundColor: "white",
+  },
+  viewAllText: {
+    fontFamily: HAND_FONT,
+    fontSize: 20,
+    color: PAINT.ink,
   },
   signOutRow: {
     flex: 1,
