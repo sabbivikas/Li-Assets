@@ -7,20 +7,20 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "cover",
-      "backgroundColor": "#080C14"
+      "backgroundColor": "#fdf6e3"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.replit.natura",
+      "bundleIdentifier": "com.sabbivikas.natura",
       "buildNumber": "1"
     },
     "android": {
-      "backgroundColor": "#080C14"
+      "backgroundColor": "#fdf6e3"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
