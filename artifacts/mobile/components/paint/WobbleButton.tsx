@@ -24,8 +24,6 @@ interface Props {
   style?: ViewStyle;
   textColor?: string;
   leading?: React.ReactNode;
-  accessibilityLabel?: string;
-  accessibilityRole?: "button" | "link" | "search" | "image" | "keyboardkey" | "text" | "adjustable" | "imagebutton" | "header" | "summary" | "none";
 }
 
 export function WobbleButton({
@@ -40,19 +38,14 @@ export function WobbleButton({
   style,
   textColor = PAINT.ink,
   leading,
-  accessibilityLabel,
-  accessibilityRole = "button",
 }: Props) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityRole={accessibilityRole}
       style={({ pressed }) => [
         { width, height },
-        disabled && { opacity: 0.45 },
-        pressed && !disabled && { opacity: 0.85, transform: [{ translateY: 1 }] },
+        pressed && { opacity: 0.85, transform: [{ translateY: 1 }] },
         style,
       ]}
     >

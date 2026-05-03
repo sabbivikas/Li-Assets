@@ -4,13 +4,24 @@ import * as AuthSession from "expo-auth-session";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import React, { useCallback, useEffect, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Easing,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { LiveEarth } from "@/components/LiveEarth";
 import {
+  Bee,
+  Bird,
+  Cloud,
   CrayonUnderline,
+  Earth,
+  Flower,
   HAND_FONT,
   LABEL_FONT,
   PaperBackground,
@@ -31,6 +42,35 @@ function useWarmUpBrowser() {
   }, []);
 }
 
+function useFloat(amount = 6, durationMs = 2400, delay = 0) {
+  const value = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(value, {
+          toValue: 1,
+          duration: durationMs,
+          delay,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(value, {
+          toValue: 0,
+          duration: durationMs,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [value, durationMs, delay]);
+  return value.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-amount, amount],
+  });
+}
+
 export default function SignInScreen() {
   useWarmUpBrowser();
   const insets = useSafeAreaInsets();
@@ -39,6 +79,28 @@ export default function SignInScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const beeY = useFloat(8, 2200, 0);
+  const birdY = useFloat(6, 2800, 400);
+  const flowerY = useFloat(4, 2600, 200);
+  const cloud1X = useFloat(10, 5000, 0);
+  const cloud2X = useFloat(12, 6000, 800);
+  const earthRot = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(earthRot, {
+        toValue: 1,
+        duration: 28000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [earthRot]);
+  const earthSpin = earthRot.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   const onGoogle = useCallback(async () => {
     if (busy) return;
@@ -74,6 +136,20 @@ export default function SignInScreen() {
     <View style={styles.root}>
       <PaperBackground />
 
+      {/* Floating clouds */}
+      <Animated.View
+        style={[styles.cloud1, { transform: [{ translateX: cloud1X }] }]}
+        pointerEvents="none"
+      >
+        <Cloud scale={1.2} />
+      </Animated.View>
+      <Animated.View
+        style={[styles.cloud2, { transform: [{ translateX: cloud2X }] }]}
+        pointerEvents="none"
+      >
+        <Cloud scale={0.9} />
+      </Animated.View>
+
       <View
         style={[
           styles.content,
@@ -92,7 +168,27 @@ export default function SignInScreen() {
           </Text>
 
           <View style={styles.earthWrap}>
-            <LiveEarth size={260} />
+            <Animated.View style={{ transform: [{ rotate: earthSpin }] }}>
+              <Earth size={210} />
+            </Animated.View>
+            <Animated.View
+              style={[styles.beePos, { transform: [{ translateY: beeY }] }]}
+              pointerEvents="none"
+            >
+              <Bee size={56} />
+            </Animated.View>
+            <Animated.View
+              style={[styles.birdPos, { transform: [{ translateY: birdY }] }]}
+              pointerEvents="none"
+            >
+              <Bird size={52} color={PAINT.blue} />
+            </Animated.View>
+            <Animated.View
+              style={[styles.flowerPos, { transform: [{ translateY: flowerY }] }]}
+              pointerEvents="none"
+            >
+              <Flower size={48} petal={PAINT.pink} />
+            </Animated.View>
           </View>
         </View>
 
@@ -129,6 +225,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  cloud1: { position: "absolute", top: 90, right: 24 },
+  cloud2: { position: "absolute", top: 160, left: 18 },
   hero: { alignItems: "center", marginTop: 32 },
   titleRow: {
     flexDirection: "row",
@@ -154,10 +252,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   earthWrap: {
+    width: 250,
+    height: 250,
     marginTop: 18,
     alignItems: "center",
     justifyContent: "center",
   },
+  beePos: { position: "absolute", top: 6, right: 4 },
+  birdPos: { position: "absolute", bottom: 16, left: 4 },
+  flowerPos: { position: "absolute", bottom: 0, right: 14 },
   actions: { gap: 14, alignItems: "center", width: "100%" },
   gIcon: {
     width: 26,

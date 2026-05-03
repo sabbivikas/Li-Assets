@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,6 +34,7 @@ import Svg, {
   Defs,
   Line,
   LinearGradient as SvgLinearGradient,
+  RadialGradient,
   Stop,
 } from "react-native-svg";
 
@@ -40,11 +42,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useLocation } from "@/context/LocationContext";
 import { LocationMap } from "@/components/LocationMap";
-import { LiveEarth } from "@/components/LiveEarth";
 import { RiveAnimation, riveAssets } from "@/components/RiveAnimation";
-import { PaperBackground } from "@/components/paint/PaperBackground";
-import { WobbleButton } from "@/components/paint/WobbleButton";
-import { HAND_FONT, LABEL_FONT, PAINT } from "@/components/paint/theme";
+import { Earth as PaintEarth } from "@/components/paint/Critters";
+import { PAINT } from "@/components/paint/theme";
 import { fetchNearbySpecies } from "@/services/iNaturalist";
 import { useQuery } from "@tanstack/react-query";
 
@@ -175,7 +175,49 @@ function OnboardingScreen({
 }
 
 function AnimatedEarth({ size = 240 }: { size?: number }) {
-  return <LiveEarth size={size} />;
+  const float = useSharedValue(0);
+  const halo = useSharedValue(0);
+
+  useEffect(() => {
+    float.value = withRepeat(
+      withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true,
+    );
+    halo.value = withRepeat(
+      withTiming(1, { duration: 2800, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true,
+    );
+  }, [float, halo]);
+
+  const earthStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: interpolate(float.value, [0, 1], [-6, 6]) }],
+  }));
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(halo.value, [0, 1], [0.35, 0.7]),
+    transform: [{ scale: interpolate(halo.value, [0, 1], [0.96, 1.06]) }],
+  }));
+
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Animated.View
+        style={[
+          {
+            position: "absolute",
+            width: size * 1.15,
+            height: size * 1.15,
+            borderRadius: size * 0.575,
+            backgroundColor: `${PAINT.sun}33`,
+          },
+          haloStyle,
+        ]}
+      />
+      <Animated.View style={earthStyle}>
+        <PaintEarth size={size} />
+      </Animated.View>
+    </View>
+  );
 }
 
 function AnimatedLocationPin({
@@ -282,11 +324,14 @@ function AnimatedLocationPinFallback({
           height: size,
           borderRadius: size / 2,
           overflow: "hidden",
-          borderWidth: 2,
-          borderColor: PAINT.ink + "30",
-          backgroundColor: PAINT.paperDeep,
+          borderWidth: 1,
+          borderColor: "#22C55E40",
         }}
       >
+        <LinearGradient
+          colors={["#0F2027", "#082014", "#04101F"]}
+          style={StyleSheet.absoluteFill}
+        />
         <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
           {Array.from({ length: 6 }).map((_, i) => (
             <Line
@@ -295,9 +340,9 @@ function AnimatedLocationPinFallback({
               y1={(size / 6) * i}
               x2={size}
               y2={(size / 6) * i}
-              stroke={PAINT.ink}
-              strokeOpacity={0.07}
-              strokeWidth={0.8}
+              stroke="#22C55E"
+              strokeOpacity={0.08}
+              strokeWidth={0.5}
             />
           ))}
           {Array.from({ length: 6 }).map((_, i) => (
@@ -307,9 +352,9 @@ function AnimatedLocationPinFallback({
               y1={0}
               x2={(size / 6) * i}
               y2={size}
-              stroke={PAINT.ink}
-              strokeOpacity={0.07}
-              strokeWidth={0.8}
+              stroke="#22C55E"
+              strokeOpacity={0.08}
+              strokeWidth={0.5}
             />
           ))}
         </Svg>
@@ -337,7 +382,7 @@ function AnimatedLocationPinFallback({
             height: 80,
             borderRadius: 40,
             borderWidth: 2,
-            borderColor: PAINT.grass,
+            borderColor: "#4ADE80",
           },
           r1Style,
         ]}
@@ -350,7 +395,7 @@ function AnimatedLocationPinFallback({
             height: 80,
             borderRadius: 40,
             borderWidth: 2,
-            borderColor: PAINT.sky,
+            borderColor: "#22D3EE",
           },
           r2Style,
         ]}
@@ -359,7 +404,7 @@ function AnimatedLocationPinFallback({
       <Animated.View style={[{ position: "absolute" }, pinStyle]}>
         <View style={pinStyles.shadow} />
         <View style={pinStyles.pin}>
-          <Feather name="map-pin" size={28} color={PAINT.ink} />
+          <Feather name="map-pin" size={28} color="#080C14" />
         </View>
       </Animated.View>
     </View>
@@ -374,23 +419,23 @@ const pinStyles = StyleSheet.create({
     width: 30,
     height: 6,
     borderRadius: 3,
-    backgroundColor: PAINT.ink,
-    opacity: 0.25,
+    backgroundColor: "#000",
+    opacity: 0.5,
   },
   pin: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: PAINT.sun,
+    backgroundColor: "#4ADE80",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: PAINT.ink,
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 8,
-    borderWidth: 2.5,
-    borderColor: PAINT.ink,
+    shadowColor: "#4ADE80",
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: "#FFFFFF40",
   },
 });
 
@@ -462,16 +507,16 @@ function OnboardingSpeciesCard({
           width: 64,
           height: 64,
           borderRadius: 20,
-          backgroundColor: "white",
-          borderWidth: 2,
-          borderColor: node.color,
+          backgroundColor: "#0F1824",
+          borderWidth: 1.5,
+          borderColor: node.color + "70",
           alignItems: "center",
           justifyContent: "center",
-          shadowColor: PAINT.ink,
-          shadowOpacity: 0.15,
-          shadowRadius: 6,
-          shadowOffset: { width: 0, height: 2 },
-          elevation: 4,
+          shadowColor: node.color,
+          shadowOpacity: 0.6,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 0 },
+          elevation: 8,
         },
         style,
       ]}
@@ -486,8 +531,8 @@ function OnboardingSpeciesCard({
           maxWidth: 96,
           textAlign: "center",
           fontSize: 10,
-          color: PAINT.inkSoft,
-          fontFamily: LABEL_FONT,
+          color: "#CBD5E1",
+          fontFamily: "Inter_600SemiBold",
         }}
       >
         {node.label}
@@ -539,8 +584,8 @@ function ConnectorLines({
       <Svg width={size} height={size}>
         <Defs>
           <SvgLinearGradient id="conn" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0%" stopColor={PAINT.grass} stopOpacity={0.9} />
-            <Stop offset="100%" stopColor={PAINT.sky} stopOpacity={0.4} />
+            <Stop offset="0%" stopColor="#4ADE80" stopOpacity={0.9} />
+            <Stop offset="100%" stopColor="#22D3EE" stopOpacity={0.4} />
           </SvgLinearGradient>
         </Defs>
         {nodes.map((n, i) => {
@@ -565,11 +610,11 @@ function ConnectorLines({
 }
 
 const CHAIN_STEPS = [
-  { icon: "circle", label: "Bee", color: PAINT.sun },
-  { icon: "feather", label: "Flowers", color: PAINT.pink },
-  { icon: "droplet", label: "Fruit", color: PAINT.orange },
-  { icon: "wind", label: "Birds", color: PAINT.sky },
-  { icon: "git-branch", label: "Diversity", color: PAINT.grass },
+  { icon: "circle", label: "Bee", color: "#FBBF24" },
+  { icon: "feather", label: "Flowers", color: "#F472B6" },
+  { icon: "droplet", label: "Fruit", color: "#FB923C" },
+  { icon: "wind", label: "Birds", color: "#22D3EE" },
+  { icon: "git-branch", label: "Diversity", color: "#4ADE80" },
 ];
 
 function EcosystemChain({ active }: { active: boolean }) {
@@ -644,7 +689,7 @@ function ChainNode({
         <Animated.View
           style={[
             chainStyles.node,
-            { borderColor: step.color, backgroundColor: PAINT.cream },
+            { borderColor: step.color, backgroundColor: "#0F1824" },
             nodeStyle,
           ]}
         >
@@ -657,7 +702,7 @@ function ChainNode({
             {
               position: "absolute",
               borderColor: "transparent",
-              backgroundColor: PAINT.paper,
+              backgroundColor: "#080C14",
             },
             dimOverlay,
           ]}
@@ -741,17 +786,17 @@ const chainStyles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    fontFamily: LABEL_FONT,
-    color: PAINT.ink,
+    fontFamily: "Inter_600SemiBold",
+    color: "#E2E8F0",
     width: 80,
   },
 });
 
 const DASHBOARD_CARDS = [
-  { icon: "layers", label: "Species", value: "184", color: PAINT.grass },
-  { icon: "activity", label: "Climate signal", value: "3 alerts", color: PAINT.sky },
-  { icon: "git-branch", label: "Impact chain", value: "12 links", color: PAINT.sun },
-  { icon: "file-text", label: "Civic report", value: "Ready", color: PAINT.pink },
+  { icon: "layers", label: "Species", value: "184", color: "#4ADE80" },
+  { icon: "activity", label: "Climate signal", value: "3 alerts", color: "#22D3EE" },
+  { icon: "git-branch", label: "Impact chain", value: "12 links", color: "#FBBF24" },
+  { icon: "file-text", label: "Civic report", value: "Ready", color: "#F472B6" },
 ];
 
 function DashboardPreview({ active }: { active: boolean }) {
@@ -833,10 +878,10 @@ function ConnectorGlow({ active, count }: { active: boolean; count: number }) {
           bottom: 30,
           width: 2,
           borderRadius: 1,
-          backgroundColor: PAINT.grass,
-          shadowColor: PAINT.grass,
-          shadowOpacity: 0.6,
-          shadowRadius: 8,
+          backgroundColor: "#4ADE80",
+          shadowColor: "#4ADE80",
+          shadowOpacity: 1,
+          shadowRadius: 12,
           shadowOffset: { width: 0, height: 0 },
         },
         style,
@@ -857,13 +902,11 @@ const dashStyles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: "white",
-    borderWidth: 1.5,
-    borderColor: PAINT.ink + "18",
-    shadowColor: PAINT.ink,
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    backgroundColor: "#0F1824",
+    borderWidth: 1,
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
   },
   iconWrap: {
     width: 38,
@@ -874,20 +917,20 @@ const dashStyles = StyleSheet.create({
   },
   cardLabel: {
     fontSize: 12,
-    color: PAINT.inkSoft,
-    fontFamily: LABEL_FONT,
+    color: "#94A3B8",
+    fontFamily: "Inter_500Medium",
   },
   cardValue: {
     fontSize: 17,
-    fontFamily: HAND_FONT,
+    fontFamily: "Inter_700Bold",
     marginTop: 2,
   },
 });
 
 const SHARE_CARDS = [
-  { icon: "user", label: "Local Leader", color: PAINT.grass, angle: -16 },
-  { icon: "tv", label: "Media", color: PAINT.sky, angle: 0 },
-  { icon: "users", label: "Community", color: PAINT.pink, angle: 16 },
+  { icon: "user", label: "Local Leader", color: "#4ADE80", angle: -16 },
+  { icon: "tv", label: "Media", color: "#22D3EE", angle: 0 },
+  { icon: "users", label: "Community", color: "#F472B6", angle: 16 },
 ];
 
 function ReportSharePreview({ active }: { active: boolean }) {
@@ -932,7 +975,7 @@ function ReportSharePreview({ active }: { active: boolean }) {
             width: 220,
             height: 220,
             borderRadius: 110,
-            backgroundColor: PAINT.grass + "40",
+            backgroundColor: "#22C55E40",
           },
           earthStyle,
         ]}
@@ -941,8 +984,8 @@ function ReportSharePreview({ active }: { active: boolean }) {
         <FanCard key={i} card={c} fan={fan} index={i} />
       ))}
       <Animated.View style={[shareStyles.baseCard, baseStyle]}>
-        <View style={[shareStyles.iconWrap, { backgroundColor: PAINT.sun + "30" }]}>
-          <Feather name="file-text" size={20} color={PAINT.sun} />
+        <View style={[shareStyles.iconWrap, { backgroundColor: "#FBBF2420" }]}>
+          <Feather name="file-text" size={20} color="#FBBF24" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={shareStyles.cardTitle}>Biodiversity Report</Text>
@@ -1003,14 +1046,14 @@ const shareStyles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: "white",
-    borderWidth: 2,
-    borderColor: PAINT.sun,
+    backgroundColor: "#0F1824",
+    borderWidth: 1.5,
+    borderColor: "#FBBF2460",
     width: 240,
-    shadowColor: PAINT.ink,
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: "#FBBF24",
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
   },
   fanCard: {
     position: "absolute",
@@ -1020,14 +1063,12 @@ const shareStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 14,
-    backgroundColor: "white",
+    backgroundColor: "#0F1824",
     borderWidth: 1.5,
-    borderColor: PAINT.ink + "20",
     width: 160,
-    shadowColor: PAINT.ink,
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.7,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
   },
   iconWrap: {
     width: 34,
@@ -1038,23 +1079,23 @@ const shareStyles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 14,
-    fontFamily: HAND_FONT,
-    color: PAINT.ink,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
   },
   cardSub: {
     fontSize: 11,
-    fontFamily: LABEL_FONT,
-    color: PAINT.inkSoft,
+    fontFamily: "Inter_500Medium",
+    color: "#94A3B8",
     marginTop: 2,
   },
 });
 
 const HIDDEN_NODES: SpeciesNode[] = [
-  { icon: "circle", label: "Bee", color: PAINT.sun, x: 0, y: -1, delay: 200 },
-  { icon: "feather", label: "Bird", color: PAINT.sky, x: 0.95, y: -0.35, delay: 450 },
-  { icon: "wind", label: "Flower", color: PAINT.pink, x: 0.6, y: 0.85, delay: 700 },
-  { icon: "droplet", label: "Frog", color: PAINT.grass, x: -0.6, y: 0.85, delay: 950 },
-  { icon: "umbrella", label: "Mushroom", color: PAINT.orange, x: -0.95, y: -0.35, delay: 1200 },
+  { icon: "circle", label: "Bee", color: "#FBBF24", x: 0, y: -1, delay: 200 },
+  { icon: "feather", label: "Bird", color: "#22D3EE", x: 0.95, y: -0.35, delay: 450 },
+  { icon: "wind", label: "Flower", color: "#F472B6", x: 0.6, y: 0.85, delay: 700 },
+  { icon: "droplet", label: "Frog", color: "#4ADE80", x: -0.6, y: 0.85, delay: 950 },
+  { icon: "umbrella", label: "Mushroom", color: "#FB923C", x: -0.95, y: -0.35, delay: 1200 },
 ];
 
 function PageIndicator({
@@ -1080,7 +1121,7 @@ function Dot({ index, scrollX }: { index: number; scrollX: SharedValue<number> }
     return {
       width: interpolate(t, [0, 1], [8, 28]),
       opacity: interpolate(t, [0, 1], [0.35, 1]),
-      backgroundColor: t > 0.5 ? PAINT.ink : PAINT.inkMute,
+      backgroundColor: t > 0.5 ? "#4ADE80" : "#94A3B8",
     };
   });
   return <Animated.View style={[styles.dot, style]} />;
@@ -1128,7 +1169,7 @@ function NameInputHero({
               width: 140,
               height: 140,
               borderRadius: 70,
-              backgroundColor: PAINT.grass + "30",
+              backgroundColor: "#22C55E40",
             },
             glowStyle,
           ]}
@@ -1138,19 +1179,19 @@ function NameInputHero({
             width: 96,
             height: 96,
             borderRadius: 48,
-            backgroundColor: PAINT.cream,
-            borderWidth: 2.5,
-            borderColor: PAINT.ink,
+            backgroundColor: "#0F1824",
+            borderWidth: 2,
+            borderColor: "#4ADE80",
             alignItems: "center",
             justifyContent: "center",
-            shadowColor: PAINT.ink,
-            shadowOpacity: 0.15,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 6,
+            shadowColor: "#4ADE80",
+            shadowOpacity: 0.7,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 12,
           }}
         >
-          <Feather name="edit-3" size={36} color={PAINT.grass} />
+          <Feather name="edit-3" size={36} color="#4ADE80" />
         </View>
       </View>
       <View style={nameStyles.inputCard}>
@@ -1158,7 +1199,7 @@ function NameInputHero({
           value={value}
           onChangeText={onChange}
           placeholder="Your name"
-          placeholderTextColor={PAINT.inkMute}
+          placeholderTextColor="#64748B"
           autoCapitalize="words"
           autoCorrect={false}
           returnKeyType="done"
@@ -1176,20 +1217,20 @@ const nameStyles = StyleSheet.create({
     width: "100%",
     maxWidth: 320,
     borderRadius: 16,
-    backgroundColor: "white",
-    borderWidth: 2,
-    borderColor: PAINT.ink + "30",
+    backgroundColor: "#0F1824",
+    borderWidth: 1.5,
+    borderColor: "#22D3EE60",
     paddingHorizontal: 18,
     paddingVertical: 14,
-    shadowColor: PAINT.ink,
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: "#22D3EE",
+    shadowOpacity: 0.4,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
   },
   input: {
-    fontFamily: LABEL_FONT,
+    fontFamily: "Inter_600SemiBold",
     fontSize: 20,
-    color: PAINT.ink,
+    color: "#FFFFFF",
     textAlign: "center",
     paddingVertical: 4,
   },
@@ -1372,7 +1413,10 @@ export default function OnboardingScreenRoot() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <PaperBackground />
+      <LinearGradient
+        colors={["#04080F", "#080C14", "#0A1628"]}
+        style={StyleSheet.absoluteFill}
+      />
       {activeIndex >= 2 && activeIndex < NUM_SCREENS - 1 ? (
         <Pressable
           onPress={handleSkip}
@@ -1466,18 +1510,16 @@ export default function OnboardingScreenRoot() {
                   width: 44,
                   height: 44,
                   borderRadius: 22,
-                  backgroundColor: PAINT.sun,
+                  backgroundColor: "#4ADE80",
                   alignItems: "center",
                   justifyContent: "center",
-                  borderWidth: 2.5,
-                  borderColor: PAINT.ink,
-                  shadowColor: PAINT.ink,
-                  shadowOpacity: 0.2,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 2 },
+                  shadowColor: "#4ADE80",
+                  shadowOpacity: 0.8,
+                  shadowRadius: 14,
+                  shadowOffset: { width: 0, height: 0 },
                 }}
               >
-                <Feather name="map-pin" size={20} color={PAINT.ink} />
+                <Feather name="map-pin" size={20} color="#080C14" />
               </View>
               {screen3Nodes.map((n, i) => (
                 <OnboardingSpeciesCard
@@ -1524,18 +1566,32 @@ export default function OnboardingScreenRoot() {
       <View style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <PageIndicator scrollX={scrollX} count={NUM_SCREENS} />
         <Animated.View style={[styles.ctaWrapAbs, dockCtaStyle]}>
-          <WobbleButton
-            label={ctaCopy}
+          <Pressable
             onPress={onPrimaryPress}
-            color={PAINT.sun}
-            width={SCREEN_W - 56}
-            height={60}
-            loading={locationLoading}
-            disabled={ctaDisabled}
-            seed={7}
             accessibilityLabel={ctaCopy}
             accessibilityRole="button"
-          />
+            disabled={ctaDisabled}
+            style={({ pressed }) => [
+              styles.cta,
+              {
+                opacity: ctaDisabled ? 0.5 : pressed ? 0.85 : 1,
+                transform: [{ scale: pressed ? 0.97 : 1 }],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={["#4ADE80", "#22C55E"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <Text style={styles.ctaText}>{ctaCopy}</Text>
+            <Feather
+              name={activeIndex === NUM_SCREENS - 1 ? "arrow-right" : "chevron-right"}
+              size={20}
+              color="#062014"
+            />
+          </Pressable>
         </Animated.View>
       </View>
     </View>
@@ -1545,7 +1601,7 @@ export default function OnboardingScreenRoot() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: PAINT.paper,
+    backgroundColor: "#04080F",
   },
   scroll: {
     flex: 1,
@@ -1578,17 +1634,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   title: {
-    fontSize: 34,
-    lineHeight: 40,
-    color: PAINT.ink,
-    fontFamily: HAND_FONT,
+    fontSize: 28,
+    lineHeight: 34,
+    color: "#FFFFFF",
+    fontFamily: "Inter_700Bold",
     textAlign: "center",
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: PAINT.inkSoft,
-    fontFamily: LABEL_FONT,
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#94A3B8",
+    fontFamily: "Inter_400Regular",
     textAlign: "center",
     maxWidth: 320,
   },
@@ -1598,7 +1655,6 @@ const styles = StyleSheet.create({
   },
   ctaWrapAbs: {
     width: "100%",
-    alignItems: "center",
   },
   dock: {
     position: "absolute",
@@ -1606,13 +1662,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: 28,
-    paddingTop: 16,
-    paddingBottom: 0,
+    paddingTop: 8,
     gap: 16,
     alignItems: "center",
-    backgroundColor: PAINT.paper + "ee",
-    borderTopWidth: 1.5,
-    borderTopColor: PAINT.ink + "18",
   },
   dots: {
     flexDirection: "row",
@@ -1623,6 +1675,27 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+  cta: {
+    width: "100%",
+    height: 56,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    overflow: "hidden",
+    shadowColor: "#22C55E",
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+  },
+  ctaText: {
+    fontSize: 17,
+    fontFamily: "Inter_700Bold",
+    color: "#062014",
+    letterSpacing: 0.2,
+  },
   skip: {
     position: "absolute",
     right: 20,
@@ -1630,13 +1703,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: PAINT.paperDeep,
-    borderWidth: 1.5,
-    borderColor: PAINT.ink + "30",
+    backgroundColor: "#FFFFFF10",
+    borderWidth: 1,
+    borderColor: "#FFFFFF18",
   },
   skipText: {
-    color: PAINT.inkSoft,
+    color: "#CBD5E1",
     fontSize: 13,
-    fontFamily: LABEL_FONT,
+    fontFamily: "Inter_600SemiBold",
   },
 });

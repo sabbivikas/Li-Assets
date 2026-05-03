@@ -2,25 +2,22 @@
   "expo": {
     "name": "Natura",
     "slug": "mobile",
-    "owner": "vikas_sabbi",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "cover",
-      "backgroundColor": "#fdf6e3"
+      "backgroundColor": "#080C14"
     },
     "ios": {
-      "supportsTablet": false,
-      "bundleIdentifier": "app.replit.natura",
-      "buildNumber": "1"
+      "supportsTablet": false
     },
     "android": {
-      "backgroundColor": "#fdf6e3"
+      "backgroundColor": "#080C14"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
