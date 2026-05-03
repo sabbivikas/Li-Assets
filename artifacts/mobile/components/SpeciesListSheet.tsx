@@ -98,16 +98,22 @@ export function SpeciesListSheet({ pins, onClose, onSelect }: Props) {
       <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={[styles.sheet, sheetStyle]}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <Feather name="layers" size={14} color="#4ADE80" />
-            <Text style={styles.headerText}>
-              {count} {count === 1 ? "species" : "species"} in this cluster
-            </Text>
+      <Animated.View style={[styles.sheet, sheetStyle]}>
+        {/* Pan gesture is scoped to the grab area only — attaching it
+            to the whole sheet would steal vertical drags from the
+            list and make scrolling unreliable on native. */}
+        <GestureDetector gesture={panGesture}>
+          <View style={styles.grabArea}>
+            <View style={styles.handle} />
+            <View style={styles.header}>
+              <Feather name="layers" size={14} color="#4ADE80" />
+              <Text style={styles.headerText}>
+                {count} {count === 1 ? "species" : "species"} in this cluster
+              </Text>
+            </View>
           </View>
-          <ScrollView
+        </GestureDetector>
+        <ScrollView
             style={styles.list}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -166,9 +172,8 @@ export function SpeciesListSheet({ pins, onClose, onSelect }: Props) {
               </Pressable>
             ))}
           </ScrollView>
-          <Text style={styles.hint}>Swipe down or tap outside to dismiss</Text>
-        </Animated.View>
-      </GestureDetector>
+        <Text style={styles.hint}>Swipe down or tap outside to dismiss</Text>
+      </Animated.View>
     </Modal>
   );
 }
@@ -195,6 +200,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -8 },
     elevation: 12,
   },
+  grabArea: { paddingBottom: 4 },
   handle: {
     width: 40,
     height: 4,
