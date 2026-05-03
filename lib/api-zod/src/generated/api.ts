@@ -15,6 +15,15 @@ export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
 
+const GenerateReportSpeciesSchema = zod.object({
+  commonName: zod.string().max(120),
+  scientificName: zod.string().max(120),
+  group: zod.string().max(80).optional(),
+  role: zod.string().max(80).optional(),
+  recentCount: zod.number().int().min(0).max(1000000),
+  conservation: zod.string().max(80).optional(),
+});
+
 /**
  * Takes a structured report context (type, area, group, top species and
 observation counts) and returns AI-generated narrative sections:
@@ -32,32 +41,14 @@ export const GenerateReportWithAIBody = zod.object({
     "invasive_watch",
     "area_summary",
   ]),
-  city: zod.string(),
-  radiusKm: zod.number(),
-  group: zod.string(),
-  recentObservations: zod.number(),
-  historicalObservations: zod.number(),
-  uniqueSpecies: zod.number(),
-  focusSpecies: zod
-    .object({
-      commonName: zod.string(),
-      scientificName: zod.string(),
-      group: zod.string().optional(),
-      role: zod.string().optional(),
-      recentCount: zod.number(),
-      conservation: zod.string().optional(),
-    })
-    .optional(),
-  topSpecies: zod.array(
-    zod.object({
-      commonName: zod.string(),
-      scientificName: zod.string(),
-      group: zod.string().optional(),
-      role: zod.string().optional(),
-      recentCount: zod.number(),
-      conservation: zod.string().optional(),
-    }),
-  ),
+  city: zod.string().max(120),
+  radiusKm: zod.number().min(0).max(500),
+  group: zod.string().max(80),
+  recentObservations: zod.number().int().min(0).max(10000000),
+  historicalObservations: zod.number().int().min(0).max(10000000),
+  uniqueSpecies: zod.number().int().min(0).max(10000000),
+  focusSpecies: GenerateReportSpeciesSchema.optional(),
+  topSpecies: zod.array(GenerateReportSpeciesSchema).max(5),
 });
 
 export const GenerateReportWithAIResponse = zod.object({
