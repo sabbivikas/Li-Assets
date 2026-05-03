@@ -38,3 +38,8 @@ externalPort = 3000
 [[ports]]
 localPort = 18116
 externalPort = 3002
+
+[userenv]
+
+[userenv.shared]
+VITE_CLERK_PUBLISHABLE_KEY = "pk_test_bW9kZXN0LWhlcm1pdC03Mi5jbGVyay5hY2NvdW50cy5kZXYk"
