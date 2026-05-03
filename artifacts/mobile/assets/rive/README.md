@@ -3,18 +3,16 @@
 This folder holds `.riv` files used by the app via the shared
 `<RiveAnimation>` wrapper in `components/RiveAnimation.tsx`.
 
-> **Status (May 2026):** the binaries currently checked in
-> (`globe.riv`, `pin.riv`, `hero.riv`, `loading.riv`, `empty.riv`)
-> are **community placeholders** — generic vehicle / avatar demos
-> sourced from the public Rive examples. They satisfy the wrapper's
-> load contract but are **not on-brand** for Life Web. On Expo Go
-> (and on any platform where `rive-react-native` isn't linked) the
-> wrapper already falls back to the on-brand RN-Animated visuals
-> (`EarthGlobe`, the ripple pin, the shimmer, the empty
-> illustration), so users on the default dev build do not see the
-> placeholder demos. Only a development build with the native Rive
-> module linked will reveal the off-brand placeholders, which is why
-> they need to be replaced before that ships (see Task #8).
+> **Status (May 2026):** the off-brand community placeholders that
+> previously occupied these slots (generic vehicle / avatar demos)
+> have been removed. `riveAssets` in
+> `components/RiveAnimation.tsx` now exposes `null` for every slot,
+> which makes the wrapper render the on-brand RN-Animated fallback
+> every caller already provides — on every platform, including dev
+> builds with `rive-react-native` linked. To wire up a real scene,
+> author it in the Rive editor against the brief below, drop the
+> `.riv` file into this folder, and replace the corresponding `null`
+> in `riveAssets` with `require("../assets/rive/<file>.riv")`.
 
 The rest of this document is the **designer brief** for replacing
 those five files.

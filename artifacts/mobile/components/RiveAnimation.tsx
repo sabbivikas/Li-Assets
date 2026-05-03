@@ -55,7 +55,15 @@ export type RiveAlignment =
   | "bottomRight";
 
 export interface RiveAnimationProps {
-  source: number;
+  /**
+   * Bundled `.riv` asset (from `require(...)`) or `null` to force the
+   * on-brand RN-Animated fallback. We export `null` from `riveAssets`
+   * for slots that don't yet have a properly themed `.riv` binary —
+   * this lets the wrapper short-circuit straight to the fallback even
+   * on dev builds where the native Rive module is linked, instead of
+   * loading off-brand placeholder content.
+   */
+  source: number | null;
   artboardName?: string;
   stateMachineName?: string;
   animationName?: string;
@@ -179,7 +187,7 @@ export function RiveAnimation({
     for (const t of triggers) ref.fireState(stateMachineName, t);
   }, [triggers, stateMachineName]);
 
-  if (!mod || reduceMotion) {
+  if (!mod || reduceMotion || source == null) {
     return <View style={[styles.wrap, style]}>{fallback}</View>;
   }
 
@@ -251,10 +259,20 @@ const styles = StyleSheet.create({
   },
 });
 
+/**
+ * Slots for the five on-brand Rive scenes. All set to `null` until
+ * properly themed `.riv` binaries are commissioned (see
+ * `assets/rive/README.md` for the per-file designer brief). With a
+ * `null` source the wrapper renders the on-brand RN-Animated
+ * fallback every caller already provides — on every platform,
+ * including dev builds with `rive-react-native` linked. To wire up a
+ * real scene later, replace the corresponding `null` with
+ * `require("../assets/rive/<file>.riv")`.
+ */
 export const riveAssets = {
-  globe: require("../assets/rive/globe.riv") as number,
-  pin: require("../assets/rive/pin.riv") as number,
-  loading: require("../assets/rive/loading.riv") as number,
-  empty: require("../assets/rive/empty.riv") as number,
-  hero: require("../assets/rive/hero.riv") as number,
+  globe: null as number | null,
+  pin: null as number | null,
+  loading: null as number | null,
+  empty: null as number | null,
+  hero: null as number | null,
 } as const;
