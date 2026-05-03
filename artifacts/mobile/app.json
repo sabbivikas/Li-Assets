@@ -2,6 +2,7 @@
   "expo": {
     "name": "Natura",
     "slug": "mobile",
+    "owner": "REPLACE_WITH_EAS_ACCOUNT_SLUG",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

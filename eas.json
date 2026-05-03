@@ -1,8 +1,7 @@
 {
   "cli": {
     "version": ">= 12.0.0",
-    "appVersionSource": "local",
-    "packageManager": "pnpm"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -22,11 +21,7 @@
     "production": {
       "projectRoot": "artifacts/mobile",
       "channel": "production",
-      "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "$EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY",
-        "EXPO_PUBLIC_DOMAIN": "$EXPO_PUBLIC_DOMAIN"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {
