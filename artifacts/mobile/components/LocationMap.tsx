@@ -8,6 +8,7 @@ interface SpeciesPin {
   lat: number;
   lng: number;
   color?: string;
+  photoUrl?: string;
 }
 
 interface Props {
@@ -31,8 +32,29 @@ function buildLeafletHtml(
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <style>
   html, body, #map { height: 100%; margin: 0; padding: 0; background: #04101F; }
+
+  /* Tint the dark tiles toward the app's deep green/earth palette */
+  .leaflet-tile-pane {
+    filter: hue-rotate(85deg) saturate(0.55) brightness(0.78) contrast(1.05);
+  }
+
+  /* Soft vignette / gradient edge that fades the map into the page background */
+  #map::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: 20px;
+    box-shadow:
+      inset 0 0 60px 20px rgba(4, 16, 31, 0.85),
+      inset 0 0 24px 4px rgba(15, 48, 32, 0.6);
+    background:
+      radial-gradient(ellipse at center, transparent 55%, rgba(4, 16, 31, 0.55) 100%);
+  }
+
   .leaflet-container { background: #04101F !important; outline: none; }
   .leaflet-control-attribution {
     background: rgba(8, 12, 20, 0.7) !important;
@@ -92,14 +114,56 @@ function buildLeafletHtml(
     100% { transform: scale(1.6); opacity: 0; }
   }
 
-  /* Species pins */
-  .species-pin {
-    width: 14px;
-    height: 14px;
+  /* Photo pin — circular avatar with tinted glowing ring */
+  .photo-pin {
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.9);
-    box-shadow: 0 0 10px currentColor, 0 2px 6px rgba(0,0,0,0.5);
+    background-size: cover;
+    background-position: center;
+    background-color: #0F1824;
+    border: 2px solid var(--ring, #4ADE80);
+    box-shadow:
+      0 0 0 2px rgba(4, 16, 31, 0.9),
+      0 0 12px var(--ring, #4ADE80),
+      0 4px 10px rgba(0,0,0,0.55);
+    transition: transform 160ms ease;
   }
+  .photo-pin:hover { transform: scale(1.12); }
+
+  /* Fallback pin when no photo is available */
+  .dot-pin {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ring, #4ADE80);
+    border: 2px solid rgba(255,255,255,0.9);
+    box-shadow: 0 0 10px var(--ring, #4ADE80), 0 2px 6px rgba(0,0,0,0.5);
+  }
+
+  /* Cluster bubble */
+  .marker-cluster-custom {
+    background: rgba(74, 222, 128, 0.18);
+    border-radius: 999px;
+    backdrop-filter: blur(4px);
+  }
+  .marker-cluster-custom div {
+    width: 36px;
+    height: 36px;
+    margin: 4px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #14532D 0%, #0F2027 100%);
+    border: 2px solid #4ADE80;
+    box-shadow: 0 0 14px rgba(74, 222, 128, 0.6), 0 4px 10px rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ECFDF5;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .marker-cluster-custom-lg div { background: linear-gradient(135deg, #166534 0%, #0F2027 100%); }
 
   .leaflet-popup-content-wrapper {
     background: rgba(15, 24, 36, 0.95) !important;
@@ -117,6 +181,7 @@ function buildLeafletHtml(
 <body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
   const lat = ${lat};
   const lng = ${lng};
@@ -169,19 +234,49 @@ function buildLeafletHtml(
     .addTo(map)
     .bindPopup('<b>You are here</b>');
 
-  // Species pins scattered within the radius
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
+  // Cluster group — collapses overlapping markers into a counted bubble
+  const cluster = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 42,
+    spiderfyOnMaxZoom: true,
+    iconCreateFunction: (c) => {
+      const count = c.getChildCount();
+      const sizeClass = count >= 10 ? ' marker-cluster-custom-lg' : '';
+      return L.divIcon({
+        html: '<div><span>' + count + '</span></div>',
+        className: 'marker-cluster-custom' + sizeClass,
+        iconSize: L.point(44, 44),
+      });
+    },
+  });
+
   pins.forEach((p) => {
-    const color = p.color || '#FBBF24';
+    const ring = p.color || '#FBBF24';
+    const safeName = escapeHtml(p.name);
+    const html = p.photoUrl
+      ? '<div class="photo-pin" style="--ring:' + ring + ';background-image:url(\\'' + p.photoUrl.replace(/'/g, "%27") + '\\');"></div>'
+      : '<div class="dot-pin" style="--ring:' + ring + ';"></div>';
+    const size = p.photoUrl ? 38 : 16;
     const icon = L.divIcon({
       className: 'species-pin-wrap',
-      html: '<div class="species-pin" style="background:' + color + ';color:' + color + ';"></div>',
-      iconSize: [14, 14],
-      iconAnchor: [7, 7],
+      html,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
     });
-    L.marker([p.lat, p.lng], { icon })
-      .addTo(map)
-      .bindPopup('<b>' + p.name + '</b>');
+    const popupHtml = p.photoUrl
+      ? '<div style="display:flex;gap:8px;align-items:center;">'
+        + '<img src="' + p.photoUrl.replace(/"/g, '%22') + '" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid #1E293B;" />'
+        + '<b>' + safeName + '</b></div>'
+      : '<b>' + safeName + '</b>';
+    L.marker([p.lat, p.lng], { icon }).bindPopup(popupHtml).addTo(cluster);
   });
+  map.addLayer(cluster);
 
   // Fit map to circle bounds
   const bounds = L.latLng(lat, lng).toBounds(radiusKm * 2200);
@@ -217,6 +312,7 @@ export function LocationMap({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           {...({ allow: "geolocation" } as any)}
         />
+        <View style={styles.edgeFade} pointerEvents="none" />
       </View>
     );
   }
@@ -234,6 +330,7 @@ export function LocationMap({
         androidLayerType="hardware"
         setSupportMultipleWindows={false}
       />
+      <View style={styles.edgeFade} pointerEvents="none" />
     </View>
   );
 }
@@ -244,11 +341,27 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: "#0F3020",
     backgroundColor: "#04101F",
+    position: "relative",
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
   },
   webview: {
     flex: 1,
     backgroundColor: "#04101F",
+  },
+  // Outer soft edge that blends the map into the page background
+  edgeFade: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
+    borderWidth: 12,
+    borderColor: "rgba(8, 16, 28, 0.55)",
   },
 });

@@ -93,6 +93,9 @@ export default function HomeScreen() {
           lat: obsLat,
           lng: obsLng,
           color: GROUP_COLORS[group] || GROUP_COLORS.Other,
+          photoUrl:
+            o.taxon?.default_photo?.square_url ||
+            o.taxon?.default_photo?.medium_url,
         };
       })
       .filter((p): p is NonNullable<typeof p> => p !== null);
