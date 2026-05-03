@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { EarthGlobe } from "@/components/EarthGlobe";
 import { StatCard } from "@/components/StatCard";
 import { SpeciesCard } from "@/components/SpeciesCard";
 import { LoadingShimmer, SpeciesCardSkeleton } from "@/components/LoadingShimmer";
@@ -119,17 +120,17 @@ export default function HomeScreen() {
 
         {/* Earth Globe */}
         <View style={styles.globeSection}>
-          <Animated.View style={[styles.globeOuter, { opacity: glowAnim, borderColor: "#4ADE8025" }]} />
-          <Animated.View style={[styles.globeMiddle, { opacity: glowAnim, borderColor: "#4ADE8035" }]} />
-          <Animated.View style={[styles.globe, { transform: [{ scale: pulseAnim }] }]}>
-            <Feather name="globe" size={52} color="#4ADE80" />
-            <View style={styles.locationDot} />
-          </Animated.View>
-          {/* Orbital dots */}
-          <View style={[styles.orbDot, styles.orbDot1, { backgroundColor: "#22D3EE" }]} />
-          <View style={[styles.orbDot, styles.orbDot2, { backgroundColor: "#FBBF24" }]} />
-          <View style={[styles.orbDot, styles.orbDot3, { backgroundColor: "#4ADE80" }]} />
-          <View style={[styles.orbDot, styles.orbDot4, { backgroundColor: "#F87171" }]} />
+          <EarthGlobe size={260} pinLat={lat} pinLng={lng} />
+        </View>
+
+        {/* Hero status banner */}
+        <View style={styles.heroBanner}>
+          <View style={styles.heroDot} />
+          <Text style={styles.heroText}>
+            {totalSpecies > 0
+              ? `Tracking ${totalSpecies} species within ${radius}km of ${cityName}`
+              : `Listening to the life web around ${cityName ?? "you"}`}
+          </Text>
         </View>
 
         {/* Stats row */}
@@ -291,8 +292,32 @@ const styles = StyleSheet.create({
   globeSection: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
-    height: 180,
+    marginBottom: 16,
+    height: 280,
+  },
+  heroBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#0F2027",
+    borderWidth: 1,
+    borderColor: "#22C55E25",
+    marginBottom: 22,
+  },
+  heroDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#4ADE80",
+  },
+  heroText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "#94A3B8",
   },
   globeOuter: {
     position: "absolute",

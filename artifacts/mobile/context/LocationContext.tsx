@@ -39,10 +39,12 @@ const STORAGE_KEYS = {
 };
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
+  // Default to San Francisco so the app shows real biodiversity data
+  // immediately, even before the user grants location permission.
   const [state, setState] = useState<LocationState>({
-    lat: null,
-    lng: null,
-    cityName: null,
+    lat: 37.7749,
+    lng: -122.4194,
+    cityName: "San Francisco",
     radius: 10,
     hasOnboarded: false,
     permissionGranted: false,
@@ -66,9 +68,9 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         hasOnboarded: onboarded === "true",
         radius: radius ? (parseInt(radius) as Radius) : 10,
-        lat: lat ? parseFloat(lat) : null,
-        lng: lng ? parseFloat(lng) : null,
-        cityName: city,
+        lat: lat ? parseFloat(lat) : prev.lat,
+        lng: lng ? parseFloat(lng) : prev.lng,
+        cityName: city ?? prev.cityName,
         loading: false,
       }));
     } catch {
@@ -159,9 +161,9 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
   const resetOnboarding = useCallback(async () => {
     await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
     setState({
-      lat: null,
-      lng: null,
-      cityName: null,
+      lat: 37.7749,
+      lng: -122.4194,
+      cityName: "San Francisco",
       radius: 10,
       hasOnboarded: false,
       permissionGranted: false,
