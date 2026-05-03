@@ -64,6 +64,12 @@ interface Props {
   height?: number;
   onPinSelect?: (pin: PinTapPayload) => void;
   selectedPinId?: number | null;
+  /**
+   * Render as a clean map preview: hides the user-location Rive pin
+   * overlay and the "no observations" empty-state scrim. Used by the
+   * onboarding hero where the pin and overlay are owned by the parent.
+   */
+  preview?: boolean;
 }
 
 function buildLeafletHtml(
@@ -554,6 +560,7 @@ export function LocationMap({
   height = 280,
   onPinSelect,
   selectedPinId,
+  preview = false,
 }: Props) {
   const [debouncedPins, setDebouncedPins] = useState(pins);
   useEffect(() => {
@@ -633,7 +640,7 @@ export function LocationMap({
   };
 
   const pinOverlay =
-    pinPos && pinPos.visible ? (
+    !preview && pinPos && pinPos.visible ? (
       <View
         pointerEvents="none"
         style={[
@@ -651,7 +658,7 @@ export function LocationMap({
     ) : null;
 
   const emptyOverlay =
-    pins.length === 0 ? (
+    !preview && pins.length === 0 ? (
       <View style={styles.emptyOverlay} pointerEvents="none">
         <RiveEmptyState
           icon="map"

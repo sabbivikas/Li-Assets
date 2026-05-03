@@ -492,6 +492,7 @@ function AnimatedLocationPinFallback({
               lng={lng as number}
               radiusKm={2}
               height={size}
+              preview
             />
           </Animated.View>
         )}
