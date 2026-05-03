@@ -68,16 +68,23 @@ components:
       properties:
         commonName:
           type: string
+          maxLength: 120
         scientificName:
           type: string
+          maxLength: 120
         group:
           type: string
+          maxLength: 80
         role:
           type: string
+          maxLength: 80
         recentCount:
           type: integer
+          minimum: 0
+          maximum: 1000000
         conservation:
           type: string
+          maxLength: 80
       required:
         - commonName
         - scientificName
@@ -95,20 +102,31 @@ components:
             - area_summary
         city:
           type: string
+          maxLength: 120
         radiusKm:
           type: number
+          minimum: 0
+          maximum: 500
         group:
           type: string
+          maxLength: 80
         recentObservations:
           type: integer
+          minimum: 0
+          maximum: 10000000
         historicalObservations:
           type: integer
+          minimum: 0
+          maximum: 10000000
         uniqueSpecies:
           type: integer
+          minimum: 0
+          maximum: 10000000
         focusSpecies:
           $ref: "#/components/schemas/GenerateReportSpecies"
         topSpecies:
           type: array
+          maxItems: 5
           items:
             $ref: "#/components/schemas/GenerateReportSpecies"
       required:
