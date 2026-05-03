@@ -42,12 +42,27 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocation } from "@/context/LocationContext";
 import { LocationMap } from "@/components/LocationMap";
 import { RiveAnimation, riveAssets } from "@/components/RiveAnimation";
-import {
-  fetchNearbySpecies,
-  getGroupIcon,
-  getIconicGroup,
-} from "@/services/iNaturalist";
+import { fetchNearbySpecies } from "@/services/iNaturalist";
 import { useQuery } from "@tanstack/react-query";
+
+// Feather-only mapping for iconic taxa. We can't reuse
+// services/iNaturalist#getGroupIcon because some of its glyphs
+// (`bug`, `leaf`, `paw-print`, `droplets`, `fish`) aren't in the
+// Feather icon set and would render blank inside the onboarding
+// species cards.
+const ICONIC_FEATHER_ICON: Record<string, keyof typeof Feather.glyphMap> = {
+  Aves: "feather",
+  Plantae: "wind",
+  Insecta: "circle",
+  Arachnida: "circle",
+  Mammalia: "circle",
+  Amphibia: "droplet",
+  Reptilia: "zap",
+  Fungi: "umbrella",
+  Actinopterygii: "anchor",
+  Mollusca: "circle",
+  Animalia: "circle",
+};
 
 const ONBOARDING_COMPLETED_KEY = "onboardingCompleted";
 
@@ -1260,16 +1275,22 @@ function Dot({ index, scrollX }: { index: number; scrollX: SharedValue<number> }
 export default function OnboardingScreenRoot() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { requestLocation, completeOnboarding, lat, lng } = useLocation();
+  const { requestLocation, completeOnboarding, lat, lng, permissionGranted } =
+    useLocation();
 
   // Pre-fetch a small sample of nearby species so screen 3 can replace
   // the generic bee/bird/flower placeholders with real local taxa once
-  // location is available. Non-blocking: if data isn't ready, the
-  // existing HIDDEN_NODES placeholders are shown.
+  // the user has actually granted location on screen 2. Gating on
+  // `permissionGranted` (not just truthy lat/lng) prevents us from
+  // showing San-Francisco-default species to users who haven't shared
+  // their location yet. Non-blocking: if the query hasn't resolved by
+  // the time the user reaches screen 3, the existing stylized
+  // HIDDEN_NODES placeholders are shown.
+  const hasRealLocation = permissionGranted && lat != null && lng != null;
   const { data: nearbySpecies } = useQuery({
     queryKey: ["onboarding-nearby-species", lat, lng],
-    queryFn: () => fetchNearbySpecies(lat!, lng!, 10, 8),
-    enabled: !!lat && !!lng,
+    queryFn: () => fetchNearbySpecies(lat as number, lng as number, 10, 8),
+    enabled: hasRealLocation,
     retry: false,
     staleTime: 5 * 60_000,
   });
@@ -1281,8 +1302,10 @@ export default function OnboardingScreenRoot() {
       const taxon = sp?.taxon;
       const name = taxon?.preferred_common_name || taxon?.name;
       if (!name) return base;
-      const group = getIconicGroup(taxon?.iconic_taxon_name);
-      return { ...base, label: name, icon: getGroupIcon(group) };
+      const icon =
+        ICONIC_FEATHER_ICON[taxon?.iconic_taxon_name ?? ""] ??
+        (base.icon as keyof typeof Feather.glyphMap);
+      return { ...base, label: name, icon };
     });
   }, [nearbySpecies]);
 
