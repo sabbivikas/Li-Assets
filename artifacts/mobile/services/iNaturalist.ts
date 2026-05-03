@@ -1,4 +1,5 @@
 const BASE_URL = "https://api.inaturalist.org/v1";
+const API_TOKEN = process.env.EXPO_PUBLIC_INATURALIST_API_TOKEN;
 
 export interface INatTaxon {
   id: number;
@@ -45,9 +46,9 @@ async function get<T>(path: string, params: Record<string, string | number | boo
     )
   ).toString();
   const url = `${BASE_URL}${path}${query ? "?" + query : ""}`;
-  const resp = await fetch(url, {
-    headers: { "Accept": "application/json" },
-  });
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (API_TOKEN) headers.Authorization = `Bearer ${API_TOKEN}`;
+  const resp = await fetch(url, { headers });
   if (!resp.ok) throw new Error(`iNat API error: ${resp.status}`);
   return resp.json();
 }
