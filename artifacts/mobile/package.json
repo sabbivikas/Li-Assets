@@ -60,6 +60,8 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@expo-google-fonts/caveat": "^0.4.2",
+    "@expo-google-fonts/patrick-hand": "^0.4.1",
     "expo-clipboard": "~8.0.8",
     "expo-dev-client": "^55.0.30",
     "react-native-webview": "^13.16.1",

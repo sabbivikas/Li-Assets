@@ -1,9 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Linking,
   Platform,
   Pressable,
@@ -14,25 +14,34 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EarthGlobeRive } from "@/components/EarthGlobeRive";
+
+import {
+  Bee,
+  Bird,
+  CrayonUnderline,
+  Flower,
+  Frog,
+  HAND_FONT,
+  LABEL_FONT,
+  Mushroom,
+  PaperBackground,
+  PAINT,
+  Sparkle,
+  WobbleBox,
+  WobbleButton,
+} from "@/components/paint";
 import {
   LocationMap,
   MAX_PIN_POOL,
   type PinTapPayload,
   type SpeciesPin,
 } from "@/components/LocationMap";
-import { LoadingShimmer, SpeciesCardSkeleton } from "@/components/LoadingShimmer";
-import { RiveEmptyState } from "@/components/RiveEmptyState";
-import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
 import {
   SpeciesBottomSheet,
   type SpeciesSelection,
 } from "@/components/SpeciesBottomSheet";
-import { SpeciesCard } from "@/components/SpeciesCard";
 import { SpeciesListSheet } from "@/components/SpeciesListSheet";
-import { StatCard } from "@/components/StatCard";
 import { useLocation, type Radius } from "@/context/LocationContext";
-import { useColors } from "@/hooks/useColors";
 import { withCache } from "@/services/cache";
 import {
   getEcosystemRoles,
@@ -46,21 +55,28 @@ import {
 } from "@/services/iNaturalist";
 import { generateInsights } from "@/services/insights";
 
-const GROUP_COLORS: Record<string, string> = {
-  Birds: "#22D3EE",
-  Plants: "#4ADE80",
-  Insects: "#FBBF24",
-  Mammals: "#F472B6",
-  Amphibians: "#60A5FA",
-  Reptiles: "#A78BFA",
-  Fungi: "#FB923C",
-  Fish: "#38BDF8",
-  Other: "#94A3B8",
+const DAY_MS = 24 * 60 * 60 * 1000;
+const RADIUS_STEPS: Radius[] = [5, 10, 25, 50];
+
+const GROUP_CRITTER: Record<string, React.ComponentType<{ size?: number }>> = {
+  Birds: Bird,
+  Insects: Bee,
+  Plants: Flower,
+  Amphibians: Frog,
+  Fungi: Mushroom,
 };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const RADIUS_STEPS: Radius[] = [5, 10, 25, 50];
+const GROUP_COLOR: Record<string, string> = {
+  Birds: PAINT.blue,
+  Plants: PAINT.grass,
+  Insects: PAINT.sun,
+  Mammals: PAINT.pink,
+  Amphibians: PAINT.grass,
+  Reptiles: PAINT.purple,
+  Fungi: PAINT.red,
+  Fish: PAINT.blue,
+  Other: PAINT.inkSoft,
+};
 
 const roleCache = new Map<string, ReturnType<typeof getEcosystemRoles>>();
 function cachedRoles(iconic?: string, name?: string) {
@@ -73,8 +89,69 @@ function cachedRoles(iconic?: string, name?: string) {
   return r;
 }
 
+type PaintStat = {
+  label: string;
+  value: number | string;
+  sub?: string;
+  color: string;
+  Icon: React.ComponentType<{ size?: number }>;
+};
+
+function PaintStatCard({
+  stat,
+  width,
+  seed,
+}: {
+  stat: PaintStat;
+  width: number;
+  seed: number;
+}) {
+  return (
+    <WobbleBox width={width} height={108} fill="white" seed={seed} padding={10}>
+      <View style={statStyles.row}>
+        <View style={[statStyles.iconWrap, { backgroundColor: stat.color + "33" }]}>
+          <stat.Icon size={44} />
+        </View>
+        <View style={statStyles.text}>
+          <Text style={statStyles.value}>{stat.value}</Text>
+          <Text style={statStyles.label}>{stat.label}</Text>
+          {stat.sub ? (
+            <Text style={statStyles.sub} numberOfLines={1}>
+              {stat.sub}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    </WobbleBox>
+  );
+}
+
+const statStyles = StyleSheet.create({
+  row: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  iconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  text: { flex: 1 },
+  value: { fontFamily: HAND_FONT, fontSize: 32, color: PAINT.ink, lineHeight: 34 },
+  label: {
+    fontFamily: LABEL_FONT,
+    fontSize: 14,
+    color: PAINT.inkSoft,
+    marginTop: -2,
+  },
+  sub: {
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.inkMute,
+    marginTop: 1,
+  },
+});
+
 export default function HomeScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { lat, lng, radius, cityName, permissionGranted, requestLocation, setRadius } =
@@ -131,8 +208,6 @@ export default function HomeScreen() {
         fetchRecentObservations(lat!, lng!, radius),
       ),
     enabled: permissionGranted && !!lat && !!lng,
-    // The iNaturalist client already retries with exponential backoff,
-    // so don't double-retry from react-query.
     retry: false,
   });
 
@@ -199,11 +274,6 @@ export default function HomeScreen() {
 
   const insights = useMemo(() => generateInsights(mapPins), [mapPins]);
 
-  // Loaded successfully, located, but iNaturalist returned no observations.
-  // We key off the raw `observations` list rather than `mapPins` so the
-  // copy ("iNaturalist has no observations…") stays accurate — pins can
-  // also be filtered out by the coord/photo filter in `mapPins`, and that
-  // case still keeps the map visible with whatever did come back.
   const isEmpty =
     permissionGranted &&
     lat != null &&
@@ -253,7 +323,6 @@ export default function HomeScreen() {
       }
     });
 
-    // Most common = species (not group) with highest visible-marker density
     type TopSpecies = { name: string; group: string; count: number };
     const topSpecies: TopSpecies | null = Array.from(speciesFreq.values()).reduce<
       TopSpecies | null
@@ -272,31 +341,74 @@ export default function HomeScreen() {
   const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
   const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
+  const TopCritter = stats.topSpecies?.group
+    ? GROUP_CRITTER[stats.topSpecies.group] ?? Flower
+    : Flower;
+
+  const paintStats: PaintStat[] = [
+    {
+      label: "species nearby",
+      value: stats.uniqueSpecies,
+      color: PAINT.grass,
+      Icon: Flower,
+    },
+    {
+      label: "active this week",
+      value: stats.activeNow,
+      color: PAINT.sun,
+      Icon: Bee,
+    },
+    {
+      label: "most common",
+      value: stats.topSpecies?.count || 0,
+      sub: stats.topSpecies?.name,
+      color:
+        (stats.topSpecies?.group && GROUP_COLOR[stats.topSpecies.group]) ||
+        PAINT.purple,
+      Icon: TopCritter,
+    },
+    {
+      label: "at risk",
+      value: stats.atRisk,
+      sub: stats.atRisk > 0 ? "needs protection" : "none on map",
+      color: PAINT.red,
+      Icon: Mushroom,
+    },
+  ];
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.earthDark }]}>
-      <View style={styles.bgGlow} pointerEvents="none" />
+    <View style={styles.container}>
+      <PaperBackground />
 
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: topInsets + 16, paddingBottom: bottomInsets + 100 },
+          { paddingTop: topInsets + 12, paddingBottom: bottomInsets + 100 },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={refetch}
-            tintColor="#4ADE80"
+            tintColor={PAINT.grassDeep}
           />
         }
       >
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Your Local Life Web</Text>
+          <View style={{ flex: 1 }}>
+            <View style={styles.titleRow}>
+              <Text style={styles.greeting}>Your local life web</Text>
+              <View style={styles.titleSparkle}>
+                <Sparkle size={7} color={PAINT.sun} />
+              </View>
+            </View>
+            <CrayonUnderline width={170} color={PAINT.pink} seed={2} />
             <View style={styles.locationRow}>
-              <Feather name="map-pin" size={13} color="#4ADE80" />
-              <Text style={styles.locationText}>{cityName || "Your Location"}</Text>
+              <Feather name="map-pin" size={14} color={PAINT.grassDeep} />
+              <Text style={styles.locationText}>
+                {cityName || "your location"}
+              </Text>
               <Text style={styles.radiusText}>· {radius}km</Text>
             </View>
           </View>
@@ -304,122 +416,122 @@ export default function HomeScreen() {
             onPress={() => router.push("/(tabs)/species")}
             style={styles.exploreBtn}
           >
-            <Feather name="compass" size={18} color="#4ADE80" />
+            <Feather name="compass" size={20} color={PAINT.ink} />
           </Pressable>
         </View>
 
-        {/* Hero map / globe */}
+        {/* Hero map area */}
         {isEmpty ? (
-          <View style={[styles.emptyHero, { backgroundColor: colors.card }]}>
-            <RiveEmptyState
-              icon="search"
-              title="No recent sightings here yet"
-              description={`iNaturalist has no observations within ${radius}km of ${cityName ?? "you"} in the last 30 days. Try widening the search or be the first to log one.`}
-            />
-            <View style={styles.emptyActions}>
-              {nextRadius != null && (
-                <Pressable
-                  onPress={() => void setRadius(nextRadius)}
-                  style={({ pressed }) => [
-                    styles.emptyPrimaryBtn,
-                    { opacity: pressed ? 0.85 : 1 },
-                  ]}
-                >
-                  <Feather name="maximize-2" size={14} color="#080C14" />
-                  <Text style={styles.emptyPrimaryBtnText}>
-                    Widen to {nextRadius}km
-                  </Text>
+          <WobbleBox
+            width={340}
+            height={220}
+            fill={PAINT.cream}
+            seed={3}
+            padding={20}
+            style={styles.heroBlock}
+          >
+            <View style={styles.emptyContent}>
+              <Frog size={70} />
+              <Text style={styles.emptyTitle}>No sightings here yet</Text>
+              <Text style={styles.emptyText}>
+                iNaturalist hasn&apos;t logged anything within {radius}km of{" "}
+                {cityName ?? "you"} in the last 30 days.
+              </Text>
+              <View style={styles.emptyActions}>
+                {nextRadius != null && (
+                  <WobbleButton
+                    label={`widen to ${nextRadius}km`}
+                    onPress={() => void setRadius(nextRadius)}
+                    color={PAINT.grass}
+                    width={170}
+                    height={50}
+                    seed={11}
+                  />
+                )}
+                <Pressable onPress={openInaturalistNearby} hitSlop={8}>
+                  <Text style={styles.linkText}>open in iNaturalist ↗</Text>
                 </Pressable>
-              )}
-              <Pressable
-                onPress={openInaturalistNearby}
-                style={({ pressed }) => [
-                  styles.emptySecondaryBtn,
-                  { opacity: pressed ? 0.85 : 1 },
-                ]}
-              >
-                <Feather name="external-link" size={14} color="#4ADE80" />
-                <Text style={styles.emptySecondaryBtnText}>
-                  Open in iNaturalist
-                </Text>
-              </Pressable>
+              </View>
             </View>
-          </View>
+          </WobbleBox>
         ) : permissionGranted && lat && lng ? (
           <View style={styles.mapSection}>
-            <LocationMap
-              lat={lat}
-              lng={lng}
-              radiusKm={radius}
-              pins={mapPins}
-              height={340}
-              selectedPinId={selection?.id ?? null}
-              onPinSelect={(pin) => setSelection(pinToSelection(pin))}
-              onClusterSelect={(pins) =>
-                setClusterSelection(pins.map(pinToSelection))
-              }
-            />
+            <View style={styles.mapBorder}>
+              <LocationMap
+                lat={lat}
+                lng={lng}
+                radiusKm={radius}
+                pins={mapPins}
+                height={300}
+                selectedPinId={selection?.id ?? null}
+                onPinSelect={(pin) => setSelection(pinToSelection(pin))}
+                onClusterSelect={(pins) =>
+                  setClusterSelection(pins.map(pinToSelection))
+                }
+              />
+            </View>
             {mapPins.length > 0 && (
-              <View style={styles.mapLegend}>
-                <Feather name="map-pin" size={11} color="#4ADE80" />
-                <Text style={styles.mapLegendText}>
-                  {mapPins.length} of {observations?.length ?? 0} sightings · last 30 days · tap a photo
-                </Text>
-              </View>
+              <Text style={styles.mapHint}>
+                {mapPins.length} of {observations?.length ?? 0} sightings · last 30
+                days · tap a critter
+              </Text>
             )}
             {observationsError && (
-              <View style={styles.mapErrorPill}>
-                <Feather name="wifi-off" size={11} color="#FCA5A5" />
-                <Text style={styles.mapErrorText}>
-                  iNaturalist is slow right now
-                </Text>
+              <View style={styles.errorPill}>
+                <Feather name="wifi-off" size={12} color={PAINT.red} />
+                <Text style={styles.errorPillText}>iNaturalist is slow right now</Text>
                 <Pressable
                   onPress={() => refetchObservations()}
                   disabled={refetchingObservations}
-                  style={styles.mapErrorRetry}
                   hitSlop={8}
                 >
-                  <Text style={styles.mapErrorRetryText}>
-                    {refetchingObservations ? "Retrying…" : "Retry"}
+                  <Text style={styles.errorRetry}>
+                    {refetchingObservations ? "retrying…" : "retry"}
                   </Text>
                 </Pressable>
               </View>
             )}
           </View>
         ) : (
-          <View style={styles.globeSection}>
-            <EarthGlobeRive
-              size={260}
-              pinLat={lat}
-              pinLng={lng}
-              locating={requestingLoc}
-              density={Math.min(1, (species?.length ?? 0) / 50)}
-            />
-            <Pressable
-              onPress={handleUseMyLocation}
-              disabled={requestingLoc}
-              style={({ pressed }) => [
-                styles.locateBtn,
-                { opacity: pressed ? 0.85 : 1 },
-              ]}
-            >
-              {requestingLoc ? (
-                <ActivityIndicator size="small" color="#080C14" />
-              ) : (
-                <Feather name="navigation" size={15} color="#080C14" />
-              )}
-              <Text style={styles.locateBtnText}>
-                {requestingLoc ? "Finding you…" : "Use my location"}
+          <WobbleBox
+            width={340}
+            height={300}
+            fill={PAINT.cream}
+            seed={5}
+            padding={16}
+            style={styles.heroBlock}
+          >
+            <View style={styles.locateContent}>
+              <View style={{ marginBottom: 12 }}>
+                <Bee size={70} />
+              </View>
+              <Text style={styles.locateTitle}>Hello, friend</Text>
+              <Text style={styles.locateSub}>
+                Share your location and we&apos;ll show you the wild lives nearby
               </Text>
-            </Pressable>
-          </View>
+              <View style={{ marginTop: 18 }}>
+                <WobbleButton
+                  label={requestingLoc ? "finding you…" : "use my location"}
+                  onPress={handleUseMyLocation}
+                  loading={requestingLoc}
+                  color={PAINT.grass}
+                  width={240}
+                  height={56}
+                  seed={9}
+                  leading={
+                    <Feather name="navigation" size={16} color={PAINT.ink} />
+                  }
+                />
+              </View>
+            </View>
+          </WobbleBox>
         )}
 
-        {/* Hero status banner */}
+        {/* Hero banner */}
         {!isEmpty && (
-          <View style={styles.heroBanner}>
-            <View style={styles.heroDot} />
-            <Text style={styles.heroText}>
+          <View style={styles.banner}>
+            <View style={styles.bannerDot} />
+            <Text style={styles.bannerText}>
               {stats.uniqueSpecies > 0
                 ? `${stats.uniqueSpecies} species pulsing within ${radius}km of ${cityName ?? "you"}`
                 : `Listening to the life web around ${cityName ?? "you"}`}
@@ -427,183 +539,193 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Stats row — every number derived from the same observations dataset */}
-        {isEmpty ? null : isLoading ? (
-          <View style={[styles.statsLoading, { backgroundColor: colors.card }]}>
-            <RiveLoadingShimmer hero width={120} height={120} />
-          </View>
-        ) : (
+        {/* Stats */}
+        {!isEmpty && (
           <View style={styles.statsGrid}>
-            <View style={styles.statCell}>
-              <StatCard
-                icon="layers"
-                value={stats.uniqueSpecies}
-                label="Species Nearby"
-                color="#4ADE80"
+            {paintStats.map((s, i) => (
+              <PaintStatCard
+                key={s.label}
+                stat={s}
+                width={163}
+                seed={i * 4 + 1}
               />
-            </View>
-            <View style={styles.statCell}>
-              <StatCard
-                icon="zap"
-                value={stats.activeNow}
-                label="Active This Week"
-                color="#22D3EE"
-              />
-            </View>
-            <View style={styles.statCell}>
-              <StatCard
-                icon={
-                  stats.topSpecies?.group === "Birds"
-                    ? "feather"
-                    : stats.topSpecies?.group === "Plants"
-                      ? "leaf"
-                      : "globe"
-                }
-                value={stats.topSpecies?.count || 0}
-                label="Most Common"
-                subtitle={stats.topSpecies?.name}
-                color={
-                  stats.topSpecies?.group
-                    ? GROUP_COLORS[stats.topSpecies.group] || "#A78BFA"
-                    : "#A78BFA"
-                }
-              />
-            </View>
-            <View style={styles.statCell}>
-              <StatCard
-                icon="alert-triangle"
-                value={stats.atRisk}
-                label="At Risk"
-                subtitle={stats.atRisk > 0 ? "Needs protection" : "None on map"}
-                color="#EF4444"
-              />
-            </View>
+            ))}
           </View>
         )}
 
-        {/* What's happening here — insights derived from observations */}
+        {/* Insights */}
         {insights.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>What&apos;s happening here</Text>
-            <View style={styles.insightsList}>
-              {insights.map((ins) => (
-                <View
-                  key={ins.id}
-                  style={[
-                    styles.insightCard,
-                    { borderColor: ins.color + "30" },
-                  ]}
-                >
+            <CrayonUnderline width={210} color={PAINT.sun} seed={4} />
+            <View style={{ height: 12 }} />
+            {insights.map((ins, i) => (
+              <WobbleBox
+                key={ins.id}
+                width={340}
+                height={76}
+                fill="white"
+                seed={i * 5 + 17}
+                padding={12}
+                style={{ marginBottom: 10 }}
+              >
+                <View style={styles.insightRow}>
                   <View
                     style={[
                       styles.insightIcon,
-                      { backgroundColor: ins.color + "1A" },
+                      { backgroundColor: ins.color + "33" },
                     ]}
                   >
-                    <Feather name={ins.icon as keyof typeof Feather.glyphMap} size={15} color={ins.color} />
+                    <Feather
+                      name={ins.icon as keyof typeof Feather.glyphMap}
+                      size={18}
+                      color={PAINT.ink}
+                    />
                   </View>
-                  <View style={styles.insightText}>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.insightTitle}>{ins.title}</Text>
                     <Text style={styles.insightDetail}>{ins.detail}</Text>
                   </View>
                 </View>
-              ))}
-            </View>
+              </WobbleBox>
+            ))}
           </View>
         )}
 
-        {/* Top species — hidden when the empty hero is already explaining the state */}
+        {/* Top species */}
         {!isEmpty && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Most Observed Nearby</Text>
-              <Pressable onPress={() => router.push("/(tabs)/species")}>
-                <Text style={styles.seeAll}>See all</Text>
+              <View>
+                <Text style={styles.sectionTitle}>Most observed nearby</Text>
+                <CrayonUnderline width={200} color={PAINT.pink} seed={6} />
+              </View>
+              <Pressable onPress={() => router.push("/(tabs)/species")} hitSlop={8}>
+                <Text style={styles.seeAll}>see all →</Text>
               </Pressable>
             </View>
 
             {isLoading ? (
-              <View style={[styles.emptyState, { backgroundColor: colors.card, alignItems: "center" }]}>
-                <RiveLoadingShimmer hero width={120} height={120} />
-              </View>
+              <Text style={styles.loadingText}>looking around...</Text>
             ) : topSpecies.length === 0 ? (
-              <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
-                <RiveEmptyState
-                  icon="search"
-                  title="No observations found"
-                  description="Try increasing your search radius in settings."
-                />
-              </View>
+              <Text style={styles.loadingText}>nothing yet — try a wider radius</Text>
             ) : (
-              topSpecies.map((s) => <SpeciesCard key={s.taxon.id} item={s} />)
+              <View style={{ gap: 10, marginTop: 10 }}>
+                {topSpecies.map((s, i) => {
+                  const photo =
+                    s.taxon.default_photo?.medium_url ||
+                    s.taxon.default_photo?.square_url;
+                  const name =
+                    s.taxon.preferred_common_name || s.taxon.name || "Species";
+                  const group = getIconicGroup(s.taxon.iconic_taxon_name);
+                  return (
+                    <Pressable
+                      key={s.taxon.id}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/species/[id]",
+                          params: { id: String(s.taxon.id) },
+                        })
+                      }
+                    >
+                      <WobbleBox
+                        width={340}
+                        height={88}
+                        fill="white"
+                        seed={i * 7 + 23}
+                        padding={10}
+                      >
+                        <View style={styles.speciesRow}>
+                          {photo ? (
+                            <Image
+                              source={{ uri: photo }}
+                              style={styles.speciesPhoto}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <View
+                              style={[
+                                styles.speciesPhoto,
+                                { backgroundColor: PAINT.paperDeep },
+                              ]}
+                            />
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.speciesName} numberOfLines={1}>
+                              {name}
+                            </Text>
+                            <Text style={styles.speciesSci} numberOfLines={1}>
+                              {s.taxon.name}
+                            </Text>
+                            <Text style={styles.speciesCount}>
+                              {s.count} sightings · {group}
+                            </Text>
+                          </View>
+                          <Feather name="chevron-right" size={20} color={PAINT.inkMute} />
+                        </View>
+                      </WobbleBox>
+                    </Pressable>
+                  );
+                })}
+              </View>
             )}
           </View>
         )}
 
         {/* Quick actions */}
-        <View style={styles.quickActions}>
+        <View style={styles.actions}>
           {stats.atRisk > 0 && (
-            <Pressable
-              style={[
-                styles.actionCard,
-                { backgroundColor: "#1A0F0F", borderColor: "#7F1D1D" },
-              ]}
-              onPress={() => router.push("/(tabs)/species")}
-            >
-              <Feather name="alert-triangle" size={20} color="#EF4444" />
-              <View style={styles.actionText}>
-                <Text style={styles.actionTitle}>
-                  {stats.atRisk} threatened {stats.atRisk === 1 ? "species" : "species"} nearby
-                </Text>
-                <Text style={styles.actionDesc}>
-                  Worth protecting in your area
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={16} color="#475569" />
+            <Pressable onPress={() => router.push("/(tabs)/species")}>
+              <WobbleBox
+                width={340}
+                height={70}
+                fill={PAINT.cream}
+                stroke={PAINT.red}
+                seed={31}
+                padding={12}
+              >
+                <View style={styles.actionRow}>
+                  <Feather name="alert-triangle" size={22} color={PAINT.red} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.actionTitle}>
+                      {stats.atRisk} threatened species nearby
+                    </Text>
+                    <Text style={styles.actionDesc}>worth protecting</Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={PAINT.inkMute} />
+                </View>
+              </WobbleBox>
             </Pressable>
           )}
-          <Pressable
-            style={[
-              styles.actionCard,
-              { backgroundColor: "#0F1824", borderColor: "#1E293B" },
-            ]}
-            onPress={() => router.push("/(tabs)/signals")}
-          >
-            <Feather name="activity" size={20} color="#22D3EE" />
-            <View style={styles.actionText}>
-              <Text style={styles.actionTitle}>Biodiversity Signals</Text>
-              <Text style={styles.actionDesc}>
-                Changes in local species patterns
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={16} color="#475569" />
+          <Pressable onPress={() => router.push("/(tabs)/signals")}>
+            <WobbleBox width={340} height={70} fill="white" seed={33} padding={12}>
+              <View style={styles.actionRow}>
+                <Feather name="activity" size={22} color={PAINT.blue} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionTitle}>Biodiversity signals</Text>
+                  <Text style={styles.actionDesc}>changes in local patterns</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={PAINT.inkMute} />
+              </View>
+            </WobbleBox>
           </Pressable>
-
-          <Pressable
-            style={[
-              styles.actionCard,
-              { backgroundColor: "#0F1824", borderColor: "#1E293B" },
-            ]}
-            onPress={() => router.push("/(tabs)/reports")}
-          >
-            <Feather name="file-text" size={20} color="#FBBF24" />
-            <View style={styles.actionText}>
-              <Text style={styles.actionTitle}>Generate Report</Text>
-              <Text style={styles.actionDesc}>
-                Create a civic biodiversity report
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={16} color="#475569" />
+          <Pressable onPress={() => router.push("/(tabs)/reports")}>
+            <WobbleBox width={340} height={70} fill="white" seed={35} padding={12}>
+              <View style={styles.actionRow}>
+                <Feather name="file-text" size={22} color={PAINT.orange} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionTitle}>Generate report</Text>
+                  <Text style={styles.actionDesc}>create a civic biodiversity report</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={PAINT.inkMute} />
+              </View>
+            </WobbleBox>
           </Pressable>
         </View>
 
-        {/* Data credit */}
-        <View style={styles.credit}>
-          <Feather name="database" size={11} color="#334155" />
-          <Text style={styles.creditText}>
-            Powered by iNaturalist community observations
-          </Text>
-        </View>
+        <Text style={styles.credit}>
+          powered by iNaturalist community observations
+        </Text>
       </ScrollView>
 
       <SpeciesBottomSheet
@@ -615,9 +737,6 @@ export default function HomeScreen() {
         onClose={() => setClusterSelection(null)}
         onSelect={(pin) => {
           setClusterSelection(null);
-          // Wait for the list sheet to finish its dismiss animation
-          // before we open the species sheet, so the two sheets don't
-          // overlap mid-transition.
           setTimeout(() => setSelection(pin), 260);
         }}
       />
@@ -626,321 +745,208 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  bgGlow: {
-    position: "absolute",
-    top: -200,
-    left: -200,
-    width: 600,
-    height: 600,
-    borderRadius: 300,
-    backgroundColor: "#0F3020",
-  },
-  scroll: { paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: PAINT.paper },
+  scroll: { paddingHorizontal: 20, alignItems: "center" },
   header: {
+    width: "100%",
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 16,
   },
+  titleRow: { flexDirection: "row", alignItems: "flex-start" },
   greeting: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
-    letterSpacing: -0.3,
+    fontFamily: HAND_FONT,
+    fontSize: 38,
+    color: PAINT.ink,
+    lineHeight: 42,
   },
+  titleSparkle: { marginLeft: 4, marginTop: 2 },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  locationText: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    color: "#94A3B8",
-  },
-  radiusText: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: "#475569",
-  },
-  exploreBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "#4ADE8015",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#4ADE8030",
-  },
-  globeSection: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    height: 320,
-  },
-  locateBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: "#4ADE80",
+    gap: 6,
     marginTop: 8,
   },
-  locateBtnText: {
-    fontSize: 13,
-    fontFamily: "Inter_700Bold",
-    color: "#080C14",
-  },
-  mapSection: {
-    marginBottom: 14,
-    gap: 8,
-  },
-  mapLegend: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: "#0F1824",
-    borderWidth: 1,
-    borderColor: "#1E293B",
-  },
-  mapLegendText: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    color: "#94A3B8",
-  },
-  mapErrorPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    alignSelf: "center",
-    paddingLeft: 12,
-    paddingRight: 6,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: "#2A0F12",
-    borderWidth: 1,
-    borderColor: "#7F1D1D",
-  },
-  mapErrorText: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    color: "#FCA5A5",
-  },
-  mapErrorRetry: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: "#7F1D1D",
-  },
-  mapErrorRetryText: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-    color: "#FECACA",
-  },
-  heroBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    alignSelf: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#0F2027",
-    borderWidth: 1,
-    borderColor: "#22C55E25",
-    marginBottom: 22,
-  },
-  heroDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#4ADE80",
-  },
-  heroText: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-    color: "#94A3B8",
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 24,
-  },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 24,
-  },
-  statCell: {
-    width: "48%",
-    flexGrow: 1,
-  },
-  statsLoading: {
-    borderRadius: 16,
-    padding: 24,
+  locationText: { fontFamily: LABEL_FONT, fontSize: 16, color: PAINT.inkSoft },
+  radiusText: { fontFamily: LABEL_FONT, fontSize: 16, color: PAINT.inkMute },
+  exploreBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: PAINT.sun,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    borderWidth: 2.5,
+    borderColor: PAINT.ink,
+    marginTop: 6,
   },
-  statSkeleton: {
-    flex: 1,
+  heroBlock: { marginBottom: 16 },
+  mapSection: { width: "100%", marginBottom: 16, alignItems: "center" },
+  mapBorder: {
+    width: "100%",
     borderRadius: 16,
-    padding: 14,
+    overflow: "hidden",
+    borderWidth: 3,
+    borderColor: PAINT.ink,
+    backgroundColor: PAINT.mapPaper,
+  },
+  mapHint: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkSoft,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  errorPill: {
+    marginTop: 8,
+    flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    backgroundColor: PAINT.cream,
+    borderWidth: 2,
+    borderColor: PAINT.red,
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
-  section: { marginBottom: 24 },
+  errorPillText: { fontFamily: LABEL_FONT, fontSize: 13, color: PAINT.red },
+  errorRetry: {
+    fontFamily: HAND_FONT,
+    fontSize: 16,
+    color: PAINT.red,
+    marginLeft: 4,
+  },
+  emptyContent: { flex: 1, alignItems: "center", justifyContent: "center" },
+  emptyTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 26,
+    color: PAINT.ink,
+    marginTop: 6,
+  },
+  emptyText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 15,
+    color: PAINT.inkSoft,
+    textAlign: "center",
+    marginTop: 4,
+    paddingHorizontal: 8,
+  },
+  emptyActions: { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 14 },
+  linkText: { fontFamily: HAND_FONT, fontSize: 18, color: PAINT.blue },
+  locateContent: { flex: 1, alignItems: "center", justifyContent: "center" },
+  locateTitle: { fontFamily: HAND_FONT, fontSize: 32, color: PAINT.ink },
+  locateSub: {
+    fontFamily: LABEL_FONT,
+    fontSize: 16,
+    color: PAINT.inkSoft,
+    textAlign: "center",
+    paddingHorizontal: 18,
+    marginTop: 4,
+  },
+  banner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: PAINT.grass + "44",
+    borderWidth: 2,
+    borderColor: PAINT.grassDeep,
+    borderRadius: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    width: "100%",
+  },
+  bannerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: PAINT.grassDeep,
+    borderWidth: 1.5,
+    borderColor: PAINT.ink,
+  },
+  bannerText: { flex: 1, fontFamily: LABEL_FONT, fontSize: 15, color: PAINT.ink },
+  statsGrid: {
+    width: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 14,
+    marginBottom: 14,
+  },
+  section: { width: "100%", marginTop: 8 },
+  sectionTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 30,
+    color: PAINT.ink,
+    lineHeight: 34,
+  },
   sectionHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
-    marginBottom: 12,
-  },
-  seeAll: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    color: "#4ADE80",
-  },
-  insightsList: { gap: 8 },
-  insightCard: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    backgroundColor: "rgba(15, 24, 36, 0.85)",
+    marginBottom: 4,
   },
+  seeAll: { fontFamily: HAND_FONT, fontSize: 18, color: PAINT.blue },
+  insightRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   insightIcon: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: PAINT.ink,
   },
-  insightText: { flex: 1, gap: 2 },
   insightTitle: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    color: "#F8FAFC",
-    letterSpacing: -0.1,
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    color: PAINT.ink,
+    lineHeight: 26,
   },
-  insightDetail: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    color: "#94A3B8",
-    lineHeight: 16,
-  },
-  emptyState: {
-    borderRadius: 16,
-    padding: 28,
-    alignItems: "center",
-    gap: 8,
-  },
-  emptyHero: {
-    borderRadius: 20,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
-    alignItems: "center",
-    gap: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#1E293B",
-  },
-  emptyActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 10,
-  },
-  emptyPrimaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#4ADE80",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-  },
-  emptyPrimaryBtnText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    color: "#080C14",
-  },
-  emptySecondaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "transparent",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#4ADE8055",
-  },
-  emptySecondaryBtnText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    color: "#4ADE80",
-  },
-  emptyTitle: {
+  insightDetail: { fontFamily: LABEL_FONT, fontSize: 14, color: PAINT.inkSoft },
+  loadingText: {
+    fontFamily: LABEL_FONT,
     fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    color: "#94A3B8",
-  },
-  emptyDesc: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: "#475569",
+    color: PAINT.inkMute,
+    marginTop: 12,
     textAlign: "center",
   },
-  quickActions: { gap: 10, marginBottom: 20 },
-  actionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
+  speciesRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  speciesPhoto: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: PAINT.ink,
   },
-  actionText: { flex: 1 },
-  actionTitle: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: "#FFFFFF",
+  speciesName: {
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    color: PAINT.ink,
+    lineHeight: 26,
   },
-  actionDesc: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: "#64748B",
+  speciesSci: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkMute,
+    fontStyle: "italic",
+  },
+  speciesCount: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkSoft,
     marginTop: 1,
   },
+  actions: { width: "100%", gap: 10, marginTop: 16 },
+  actionRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  actionTitle: { fontFamily: HAND_FONT, fontSize: 22, color: PAINT.ink, lineHeight: 24 },
+  actionDesc: { fontFamily: LABEL_FONT, fontSize: 13, color: PAINT.inkSoft },
   credit: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    marginTop: 4,
-  },
-  creditText: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    color: "#334155",
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.inkMute,
+    textAlign: "center",
+    marginTop: 22,
   },
 });

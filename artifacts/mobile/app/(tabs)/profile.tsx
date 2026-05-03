@@ -1,6 +1,5 @@
 import { useAuth, useUser } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -17,6 +16,20 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  Bee,
+  Bird,
+  CrayonUnderline,
+  Flower,
+  Frog,
+  HAND_FONT,
+  LABEL_FONT,
+  Mushroom,
+  PaperBackground,
+  PAINT,
+  Sparkle,
+  WobbleBox,
+} from "@/components/paint";
 import { useLocation } from "@/context/LocationContext";
 
 function initialsFor(name: string | null | undefined, email: string | undefined): string {
@@ -29,6 +42,14 @@ function initialsFor(name: string | null | undefined, email: string | undefined)
       : (parts[0] ?? "").slice(0, 2);
   return letters.toUpperCase();
 }
+
+const BADGES = [
+  { Icon: Bee, label: "Pollinator pal", color: PAINT.sun },
+  { Icon: Bird, label: "Bird watcher", color: PAINT.blue },
+  { Icon: Flower, label: "Flower friend", color: PAINT.pink },
+  { Icon: Frog, label: "Pond pioneer", color: PAINT.grass },
+  { Icon: Mushroom, label: "Fungi finder", color: PAINT.red },
+];
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -69,7 +90,8 @@ export default function ProfileScreen() {
   if (!isLoaded) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color="#7CF5C2" />
+        <PaperBackground />
+        <ActivityIndicator color={PAINT.grass} />
       </View>
     );
   }
@@ -84,65 +106,123 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={["#0F1F1A", "#080C14"]}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-      />
+      <PaperBackground />
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 120 },
+          { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 120 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.h1}>Profile</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.h1}>My field journal</Text>
+          <View style={styles.sparkleA}>
+            <Sparkle size={8} color={PAINT.sun} />
+          </View>
+        </View>
+        <CrayonUnderline width={200} color={PAINT.pink} seed={7} />
 
-        <View style={styles.card}>
-          <View style={styles.avatarWrap}>
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" />
-            ) : (
-              <View style={[styles.avatar, styles.avatarFallback]}>
-                <Text style={styles.avatarInitials}>{initials}</Text>
+        {/* Naturalist passport card */}
+        <WobbleBox
+          width={340}
+          height={300}
+          fill={PAINT.cream}
+          seed={11}
+          padding={20}
+          style={styles.passport}
+        >
+          <View style={styles.passportTop}>
+            <View style={styles.avatarWrap}>
+              {avatarUrl ? (
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[styles.avatar, styles.avatarFallback]}>
+                  <Text style={styles.avatarInitials}>{initials}</Text>
+                </View>
+              )}
+              <View style={styles.avatarFlower}>
+                <Flower size={36} petal={PAINT.pink} />
               </View>
-            )}
+            </View>
+            <View style={styles.passportInfo}>
+              <Text style={styles.naturalistLabel}>naturalist</Text>
+              <Text style={styles.name} numberOfLines={1}>
+                {fullName ?? "Life Web member"}
+              </Text>
+              {email ? (
+                <Text style={styles.email} numberOfLines={1}>
+                  {email}
+                </Text>
+              ) : null}
+              <View style={styles.locationRow}>
+                <Feather name="map-pin" size={14} color={PAINT.grassDeep} />
+                <Text style={styles.locationText}>
+                  {cityName ? `${cityName} · ${radius}km` : `${radius}km radius`}
+                </Text>
+              </View>
+            </View>
           </View>
-          <Text style={styles.name}>{fullName ?? "Life Web member"}</Text>
-          {email ? <Text style={styles.email}>{email}</Text> : null}
+
+          <View style={styles.divider} />
+
+          <Text style={styles.statsLabel}>est. 2026 · seedling rank</Text>
+        </WobbleBox>
+
+        {/* Badges */}
+        <Text style={styles.sectionTitle}>badges earned</Text>
+        <CrayonUnderline width={140} color={PAINT.sun} seed={3} />
+        <View style={styles.badges}>
+          {BADGES.map((b, i) => (
+            <View key={b.label} style={styles.badgeWrap}>
+              <WobbleBox
+                width={96}
+                height={96}
+                fill="white"
+                seed={i * 3 + 5}
+                padding={6}
+              >
+                <View style={styles.badgeInner}>
+                  <b.Icon size={50} />
+                </View>
+              </WobbleBox>
+              <Text style={styles.badgeLabel}>{b.label}</Text>
+            </View>
+          ))}
         </View>
 
-        <Text style={styles.sectionLabel}>Your life web</Text>
-        <View style={styles.row}>
-          <View style={styles.rowIcon}>
-            <Feather name="map-pin" size={16} color="#7CF5C2" />
-          </View>
-          <View style={styles.rowText}>
-            <Text style={styles.rowTitle}>Listening near</Text>
-            <Text style={styles.rowSub}>
-              {cityName ? `${cityName} · ${radius}km radius` : `${radius}km radius`}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.sectionLabel}>Account</Text>
+        {/* Sign out */}
+        <Text style={styles.sectionTitle}>account</Text>
         <Pressable
           onPress={onSignOut}
           disabled={busy}
           style={({ pressed }) => [
-            styles.signOut,
-            (pressed || busy) && styles.signOutPressed,
+            { opacity: pressed || busy ? 0.7 : 1, marginTop: 6 },
           ]}
         >
-          {busy ? (
-            <ActivityIndicator color="#FF7E7E" />
-          ) : (
-            <>
-              <Feather name="log-out" size={16} color="#FF7E7E" />
-              <Text style={styles.signOutText}>Sign out</Text>
-            </>
-          )}
+          <WobbleBox
+            width={300}
+            height={56}
+            fill="white"
+            stroke={PAINT.red}
+            strokeWidth={2.5}
+            seed={13}
+            padding={0}
+          >
+            <View style={styles.signOutRow}>
+              {busy ? (
+                <ActivityIndicator color={PAINT.red} />
+              ) : (
+                <>
+                  <Feather name="log-out" size={18} color={PAINT.red} />
+                  <Text style={styles.signOutText}>sign out</Text>
+                </>
+              )}
+            </View>
+          </WobbleBox>
         </Pressable>
       </ScrollView>
     </View>
@@ -150,114 +230,134 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#080C14" },
+  root: { flex: 1, backgroundColor: PAINT.paper },
   loading: {
     flex: 1,
-    backgroundColor: "#080C14",
+    backgroundColor: PAINT.paper,
     alignItems: "center",
     justifyContent: "center",
   },
-  scroll: { paddingHorizontal: 20 },
+  scroll: { paddingHorizontal: 20, alignItems: "center" },
+  titleRow: { flexDirection: "row", alignSelf: "flex-start" },
   h1: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 28,
-    color: "#F2FBF6",
-    marginBottom: 24,
+    fontFamily: HAND_FONT,
+    fontSize: 44,
+    color: PAINT.ink,
+    lineHeight: 50,
   },
-  card: {
-    backgroundColor: "#0E1822",
-    borderRadius: 24,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
+  sparkleA: { marginLeft: 6, marginTop: 4 },
+  passport: { marginTop: 22, marginBottom: 28 },
+  passportTop: { flexDirection: "row", alignItems: "center", gap: 16 },
+  avatarWrap: {
+    width: 92,
+    height: 92,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#1E293B",
-    marginBottom: 28,
+    justifyContent: "center",
+    position: "relative",
   },
-  avatarWrap: { marginBottom: 14 },
   avatar: {
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: "#142235",
+    backgroundColor: PAINT.paperDeep,
+    borderWidth: 3,
+    borderColor: PAINT.ink,
   },
   avatarFallback: {
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#7CF5C2",
+    backgroundColor: PAINT.sun,
   },
   avatarInitials: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 28,
-    color: "#7CF5C2",
+    fontFamily: HAND_FONT,
+    fontSize: 36,
+    color: PAINT.ink,
+  },
+  avatarFlower: {
+    position: "absolute",
+    bottom: -8,
+    right: -10,
+    transform: [{ rotate: "20deg" }],
+  },
+  passportInfo: { flex: 1 },
+  naturalistLabel: {
+    fontFamily: LABEL_FONT,
+    fontSize: 14,
+    color: PAINT.inkMute,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
   name: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 18,
-    color: "#F2FBF6",
-    marginBottom: 4,
-  },
-  email: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    color: "#8FA6A1",
-  },
-  sectionLabel: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 12,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    color: "#5C6F6B",
-    marginBottom: 10,
-    marginTop: 4,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0E1822",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#1E293B",
-    marginBottom: 28,
-    gap: 12,
-  },
-  rowIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#0F2A22",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowText: { flex: 1 },
-  rowTitle: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-    color: "#F2FBF6",
-  },
-  rowSub: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    color: "#8FA6A1",
+    fontFamily: HAND_FONT,
+    fontSize: 32,
+    color: PAINT.ink,
+    lineHeight: 36,
     marginTop: 2,
   },
-  signOut: {
+  email: {
+    fontFamily: LABEL_FONT,
+    fontSize: 15,
+    color: PAINT.inkSoft,
+    marginTop: 2,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+  locationText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 15,
+    color: PAINT.grassDeep,
+  },
+  divider: {
+    height: 2,
+    backgroundColor: PAINT.paperDeep,
+    marginVertical: 16,
+    borderRadius: 1,
+  },
+  statsLabel: {
+    fontFamily: LABEL_FONT,
+    fontSize: 15,
+    color: PAINT.inkSoft,
+    textAlign: "center",
+  },
+  sectionTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 28,
+    color: PAINT.ink,
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+  badges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 14,
+    marginBottom: 8,
+    rowGap: 18,
+  },
+  badgeWrap: { width: "31%", alignItems: "center" },
+  badgeInner: { flex: 1, alignItems: "center", justifyContent: "center" },
+  badgeLabel: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkSoft,
+    textAlign: "center",
+    marginTop: 4,
+  },
+  signOutRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    backgroundColor: "#1A0E14",
-    borderRadius: 16,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: "#3A1A22",
   },
-  signOutPressed: { opacity: 0.7 },
   signOutText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 15,
-    color: "#FF7E7E",
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    color: PAINT.red,
   },
 });

@@ -1,10 +1,15 @@
 import {
+  Caveat_500Medium,
+  Caveat_700Bold,
+} from "@expo-google-fonts/caveat";
+import {
   Inter_400Regular,
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
+import { PatrickHand_400Regular } from "@expo-google-fonts/patrick-hand";
 import { ClerkLoaded, ClerkProvider, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -39,7 +44,7 @@ function RootLayoutNav() {
   if (loading || !isLoaded) return null;
 
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#080C14" } }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#fdf6e3" } }}>
       {!isSignedIn ? (
         <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
       ) : !hasOnboarded ? (
@@ -73,6 +78,9 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Caveat_500Medium,
+    Caveat_700Bold,
+    PatrickHand_400Regular,
   });
 
   useEffect(() => {
@@ -94,7 +102,7 @@ export default function RootLayout() {
           <ErrorBoundary>
             <QueryClientProvider client={queryClient}>
               <LocationProvider>
-                <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#080C14" }}>
+                <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#fdf6e3" }}>
                   <KeyboardProvider>
                     <RootLayoutNav />
                   </KeyboardProvider>

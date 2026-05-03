@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Life Web · Whimsy Paint Redesign</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; background: #f0e8d4; font-family: "Patrick Hand", sans-serif; }
+    * { box-sizing: border-box; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="screens.jsx"></script>
+  <script type="text/babel" src="extras.jsx"></script>
+  <script type="text/babel">
+    const { DesignCanvas, DCSection, DCArtboard } = window;
+
+    function Phone({ children }) {
+      return (
+        <IOSDevice width={390} height={844}>
+          <div style={{ width: "100%", height: "100%", position: "relative" }}>{children}</div>
+        </IOSDevice>
+      );
+    }
+
+    function App() {
+      return (
+        <DesignCanvas title="Life Web — A whimsy paint-style redesign" subtitle="Hand-drawn, MS-Paint inspired biodiversity app · iNaturalist powered · live animations">
+          <DCSection id="onboard" title="Onboarding (6 screens)" subtitle="Cinematic welcome flow with live animations">
+            <DCArtboard id="ob1" label="01 · World is changing" width={390} height={844}>
+              <Phone><OB1 /></Phone>
+            </DCArtboard>
+            <DCArtboard id="ob2" label="02 · Where are you?" width={390} height={844}>
+              <Phone><OB2 /></Phone>
+            </DCArtboard>
+            <DCArtboard id="ob3" label="03 · Discovering critters" width={390} height={844}>
+              <Phone><OB3 /></Phone>
+            </DCArtboard>
+            <DCArtboard id="ob4" label="04 · Pick spirit critter" width={390} height={844}>
+              <Phone><OB4 /></Phone>
+            </DCArtboard>
+            <DCArtboard id="ob5" label="05 · Frequency" width={390} height={844}>
+              <Phone><OB5 /></Phone>
+            </DCArtboard>
+            <DCArtboard id="ob6" label="06 · Welcome to your web" width={390} height={844}>
+              <Phone><OB6 /></Phone>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="flow" title="Core app" subtitle="Home (live map!) → Species → Detail → Impact">
+            <DCArtboard id="home" label="Home — Live Life Web" width={390} height={844}>
+              <Phone><Screen_Home_Live /></Phone>
+            </DCArtboard>
+            <DCArtboard id="spc" label="Species List" width={390} height={844}>
+              <Phone><Screen_Species /></Phone>
+            </DCArtboard>
+            <DCArtboard id="det" label="Species Detail" width={390} height={844}>
+              <Phone><Screen_SpeciesDetail /></Phone>
+            </DCArtboard>
+            <DCArtboard id="imp" label="Impact Cascade" width={390} height={844}>
+              <Phone><Screen_Impact /></Phone>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="profile" title="You — Naturalist Passport" subtitle="Field-journal style profile with merit badges and trading card">
+            <DCArtboard id="prof" label="User Profile" width={390} height={844}>
+              <Phone><Screen_Profile /></Phone>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="signal" title="Signals & Civic" subtitle="Patterns, reports, and shareables">
+            <DCArtboard id="sig" label="Signals" width={390} height={844}>
+              <Phone><Screen_Signals /></Phone>
+            </DCArtboard>
+            <DCArtboard id="rep" label="Civic Report" width={390} height={844}>
+              <Phone><Screen_Report /></Phone>
+            </DCArtboard>
+            <DCArtboard id="shr" label="Shareable Card" width={390} height={844}>
+              <Phone><Screen_ShareCard /></Phone>
+            </DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
