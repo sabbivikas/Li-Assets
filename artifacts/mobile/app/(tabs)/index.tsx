@@ -13,9 +13,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EarthGlobe } from "@/components/EarthGlobe";
+import { EarthGlobeRive } from "@/components/EarthGlobeRive";
 import { LocationMap, type SpeciesPin } from "@/components/LocationMap";
 import { LoadingShimmer, SpeciesCardSkeleton } from "@/components/LoadingShimmer";
+import { RiveEmptyState } from "@/components/RiveEmptyState";
+import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
 import {
   SpeciesBottomSheet,
   type SpeciesSelection,
@@ -283,7 +285,13 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.globeSection}>
-            <EarthGlobe size={260} pinLat={lat} pinLng={lng} />
+            <EarthGlobeRive
+              size={260}
+              pinLat={lat}
+              pinLng={lng}
+              locating={requestingLoc}
+              density={Math.min(1, totalSpecies / 50)}
+            />
             <Pressable
               onPress={handleUseMyLocation}
               disabled={requestingLoc}
@@ -316,17 +324,8 @@ export default function HomeScreen() {
 
         {/* Stats row — every number derived from the same observations dataset */}
         {isLoading ? (
-          <View style={styles.statsRow}>
-            {[1, 2, 3].map((i) => (
-              <View
-                key={i}
-                style={[styles.statSkeleton, { backgroundColor: colors.card }]}
-              >
-                <LoadingShimmer width={36} height={36} borderRadius={10} />
-                <LoadingShimmer width="60%" height={20} borderRadius={6} />
-                <LoadingShimmer width="80%" height={12} borderRadius={6} />
-              </View>
-            ))}
+          <View style={[styles.statsLoading, { backgroundColor: colors.card }]}>
+            <RiveLoadingShimmer hero width={120} height={120} />
           </View>
         ) : (
           <View style={styles.statsGrid}>
@@ -418,18 +417,16 @@ export default function HomeScreen() {
           </View>
 
           {isLoading ? (
-            <>
-              <SpeciesCardSkeleton />
-              <SpeciesCardSkeleton />
-              <SpeciesCardSkeleton />
-            </>
+            <View style={[styles.emptyState, { backgroundColor: colors.card, alignItems: "center" }]}>
+              <RiveLoadingShimmer hero width={120} height={120} />
+            </View>
           ) : topSpecies.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
-              <Feather name="search" size={28} color="#475569" />
-              <Text style={styles.emptyTitle}>No observations found</Text>
-              <Text style={styles.emptyDesc}>
-                Try increasing your search radius in settings.
-              </Text>
+              <RiveEmptyState
+                icon="search"
+                title="No observations found"
+                description="Try increasing your search radius in settings."
+              />
             </View>
           ) : (
             topSpecies.map((s) => <SpeciesCard key={s.taxon.id} item={s} />)
@@ -640,6 +637,13 @@ const styles = StyleSheet.create({
   statCell: {
     width: "48%",
     flexGrow: 1,
+  },
+  statsLoading: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
   statSkeleton: {
     flex: 1,

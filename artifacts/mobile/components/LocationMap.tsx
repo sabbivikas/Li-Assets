@@ -1,6 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
-import { WebView } from "react-native-webview";
+import { WebView, type WebViewMessageEvent } from "react-native-webview";
+
+import { RiveEmptyState } from "@/components/RiveEmptyState";
+import { RiveLocationPin } from "@/components/RiveLocationPin";
+
+interface UserPinPosition {
+  x: number;
+  y: number;
+  visible: boolean;
+}
 
 export interface SpeciesPin {
   id: number;
@@ -113,38 +122,10 @@ function buildLeafletHtml(
     background: rgba(34, 197, 94, 0.15) !important;
   }
 
-  /* User location pin — pulsing glow */
-  .user-pin {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #4ADE80;
-    border: 3px solid #FFFFFF;
-    box-shadow: 0 0 18px #4ADE80, 0 0 36px #4ADE80;
-    position: relative;
-  }
-  .user-pin::before {
-    content: '';
-    position: absolute;
-    inset: -10px;
-    border-radius: 50%;
-    background: #4ADE80;
-    opacity: 0.4;
-    animation: userpulse 2.2s ease-out infinite;
-  }
-  .user-pin::after {
-    content: '';
-    position: absolute;
-    inset: -16px;
-    border-radius: 50%;
-    background: #4ADE80;
-    opacity: 0.18;
-    animation: userpulse 2.2s 0.4s ease-out infinite;
-  }
-  @keyframes userpulse {
-    0% { transform: scale(0.55); opacity: 0.65; }
-    100% { transform: scale(1.6); opacity: 0; }
-  }
+  /* User location is rendered as a Rive overlay above the map; the
+     leaflet marker is invisible and exists only to mark the geographic
+     anchor for popups and for centering on initial load. */
+  .user-pin { width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
   .pin-wrap {
     animation: float var(--float-dur, 4.2s) ease-in-out infinite;
@@ -313,15 +294,62 @@ function buildLeafletHtml(
     dashArray: '2, 8',
   }).addTo(map);
 
-  // User location marker
-  var userIcon = L.divIcon({
+  // User location marker — kept as an invisible geographic anchor so
+  // the popup binds to the right point. The visible pin is a Rive
+  // overlay rendered above the map by React Native; we post the
+  // projected pixel coords to the host on every move/zoom so the
+  // overlay tracks the user's geographic position.
+  const userIcon = L.divIcon({
     className: 'user-pin-wrap',
     html: '<div class="user-pin"></div>',
     iconSize: [22, 22],
     iconAnchor: [11, 11],
   });
-  L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 }).addTo(map);
+  const userMarker = L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 })
+    .addTo(map)
+    .bindPopup('<b>You are here</b>');
 
+  function postUserPin() {
+    try {
+      const pt = map.latLngToContainerPoint([lat, lng]);
+      const size = map.getSize();
+      const visible = pt.x >= -32 && pt.y >= -32 && pt.x <= size.x + 32 && pt.y <= size.y + 32;
+      const msg = JSON.stringify({ type: 'userPin', x: pt.x, y: pt.y, visible: visible });
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(msg);
+      } else if (window.parent && window.parent !== window) {
+        window.parent.postMessage(msg, '*');
+      }
+    } catch (e) { /* map not ready yet */ }
+  }
+  map.on('move zoom moveend zoomend resize load', postUserPin);
+  setTimeout(postUserPin, 0);
+  setTimeout(postUserPin, 200);
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
+  // Cluster group — collapses overlapping markers into a counted bubble
+  const cluster = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 42,
+    spiderfyOnMaxZoom: true,
+    iconCreateFunction: (c) => {
+      const count = c.getChildCount();
+      const sizeClass = count >= 10 ? ' marker-cluster-custom-lg' : '';
+      return L.divIcon({
+        html: '<div><span>' + count + '</span></div>',
+        className: 'marker-cluster-custom' + sizeClass,
+        iconSize: L.point(44, 44),
+      });
+    },
+  });
+
+  // Conservatively encode any photo URL before injecting into HTML/CSS.
+  // Allows only http(s) URLs; fully encodes special characters.
   function safeUrl(u) {
     if (typeof u !== 'string') return '';
     if (!/^https?:\\/\\//i.test(u)) return '';
@@ -457,6 +485,20 @@ function buildLeafletHtml(
 </html>`;
 }
 
+const PIN_SIZE = 64;
+
+function parseUserPinMessage(raw: string): UserPinPosition | null {
+  try {
+    const m = JSON.parse(raw);
+    if (m && m.type === "userPin" && typeof m.x === "number" && typeof m.y === "number") {
+      return { x: m.x, y: m.y, visible: m.visible !== false };
+    }
+  } catch {
+    /* not JSON or not our message */
+  }
+  return null;
+}
+
 export function LocationMap({
   lat,
   lng,
@@ -483,22 +525,40 @@ export function LocationMap({
     onPinSelectRef.current = onPinSelect;
   }, [onPinSelect]);
 
+  // Reset the projected pin position whenever the map source changes so
+  // we don't briefly show the old position over the new map.
+  const [pinPos, setPinPos] = useState<UserPinPosition | null>(null);
+  useLayoutEffect(() => {
+    setPinPos(null);
+  }, [html]);
+
+  // Web: receive postMessage from the iframe.
   useEffect(() => {
     if (Platform.OS !== "web") return;
     function handler(e: MessageEvent) {
       if (e.source !== iframeRef.current?.contentWindow) return;
+
+      // Handle userPin position message
+      if (typeof e.data === "string") {
+        const next = parseUserPinMessage(e.data);
+        if (next) {
+          setPinPos(next);
+          return;
+        }
+      }
+
+      // Handle pin-tap message
       const data = e.data;
       if (
-        !data ||
-        typeof data !== "object" ||
-        data.type !== "pin-tap" ||
-        data.source !== "lifeweb-map" ||
-        !data.pin ||
-        typeof data.pin.id !== "number"
+        data &&
+        typeof data === "object" &&
+        data.type === "pin-tap" &&
+        data.source === "lifeweb-map" &&
+        data.pin &&
+        typeof data.pin.id === "number"
       ) {
-        return;
+        onPinSelectRef.current?.(data.pin);
       }
-      onPinSelectRef.current?.(data.pin);
     }
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -515,6 +575,50 @@ export function LocationMap({
     }
   }, [selectedPinId]);
 
+  const onWebViewMessage = (e: WebViewMessageEvent) => {
+    const next = parseUserPinMessage(e.nativeEvent.data);
+    if (next) {
+      setPinPos(next);
+      return;
+    }
+    try {
+      const data = JSON.parse(e.nativeEvent.data);
+      if (data?.type === "pin-tap" && data.pin) {
+        onPinSelectRef.current?.(data.pin);
+      }
+    } catch {}
+  };
+
+  const pinOverlay =
+    pinPos && pinPos.visible ? (
+      <View
+        pointerEvents="none"
+        style={[
+          styles.geoPin,
+          {
+            left: pinPos.x - PIN_SIZE / 2,
+            top: pinPos.y - PIN_SIZE / 2,
+            width: PIN_SIZE,
+            height: PIN_SIZE,
+          },
+        ]}
+      >
+        <RiveLocationPin size={PIN_SIZE} />
+      </View>
+    ) : null;
+
+  const emptyOverlay =
+    pins.length === 0 ? (
+      <View style={styles.emptyOverlay} pointerEvents="none">
+        <RiveEmptyState
+          icon="map"
+          size={96}
+          title="No observations on the map yet"
+          description="Pan or expand your radius to find sightings."
+        />
+      </View>
+    ) : null;
+
   if (Platform.OS === "web") {
     return (
       <View style={[styles.wrap, { height }]}>
@@ -530,6 +634,8 @@ export function LocationMap({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           {...({ allow: "geolocation" } as any)}
         />
+        {pinOverlay}
+        {emptyOverlay}
         <View style={styles.edgeFade} pointerEvents="none" />
       </View>
     );
@@ -548,16 +654,10 @@ export function LocationMap({
         domStorageEnabled
         androidLayerType="hardware"
         setSupportMultipleWindows={false}
-        onMessage={(event) => {
-          try {
-            const data = JSON.parse(event.nativeEvent.data);
-            if (data?.type === "pin-tap" && data.pin) {
-              onPinSelectRef.current?.(data.pin);
-            }
-          } catch {
-          }
-        }}
+        onMessage={onWebViewMessage}
       />
+      {pinOverlay}
+      {emptyOverlay}
       <View style={styles.edgeFade} pointerEvents="none" />
     </View>
   );
@@ -581,6 +681,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#04101F",
   },
+  geoPin: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(4,16,31,0.55)",
+  },
+  // Outer soft edge that blends the map into the page background
   edgeFade: {
     position: "absolute",
     top: 0,

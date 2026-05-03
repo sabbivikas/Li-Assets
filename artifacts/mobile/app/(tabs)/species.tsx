@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SpeciesCard } from "@/components/SpeciesCard";
-import { SpeciesCardSkeleton } from "@/components/LoadingShimmer";
+import { RiveEmptyState } from "@/components/RiveEmptyState";
+import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
 import { useLocation } from "@/context/LocationContext";
 import { fetchNearbySpecies, getIconicGroup, type SpeciesCount } from "@/services/iNaturalist";
 import { withCache } from "@/services/cache";
@@ -146,9 +147,8 @@ export default function SpeciesScreen() {
 
       {isLoading ? (
         <View style={styles.skeletonList}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SpeciesCardSkeleton key={i} />
-          ))}
+          <RiveLoadingShimmer hero width={140} height={140} />
+          <Text style={styles.loadingText}>Finding nearby species…</Text>
         </View>
       ) : (
         <FlatList
@@ -164,13 +164,15 @@ export default function SpeciesScreen() {
           scrollEnabled={!!filtered.length}
           ListEmptyComponent={
             <View style={[styles.empty, { backgroundColor: "#0F1824" }]}>
-              <Feather name="search" size={28} color="#334155" />
-              <Text style={styles.emptyTitle}>No species found</Text>
-              <Text style={styles.emptyDesc}>
-                {search
-                  ? "Try a different search term"
-                  : "No observations in this group nearby"}
-              </Text>
+              <RiveEmptyState
+                icon="search"
+                title="No species found"
+                description={
+                  search
+                    ? "Try a different search term"
+                    : "No observations in this group nearby"
+                }
+              />
             </View>
           }
           renderItem={({ item }) => <SpeciesCard item={item} />}
@@ -236,7 +238,17 @@ const styles = StyleSheet.create({
     borderRadius: 100,
   },
   list: { paddingHorizontal: 20, paddingTop: 14 },
-  skeletonList: { padding: 20, gap: 4 },
+  skeletonList: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    color: "#64748B",
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
   empty: {
     borderRadius: 16,
     padding: 32,

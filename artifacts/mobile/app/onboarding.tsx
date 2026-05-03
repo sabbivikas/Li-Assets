@@ -40,6 +40,7 @@ import Svg, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useLocation } from "@/context/LocationContext";
+import { RiveAnimation, riveAssets } from "@/components/RiveAnimation";
 
 const ONBOARDING_COMPLETED_KEY = "onboardingCompleted";
 
@@ -149,6 +150,16 @@ function OnboardingScreen({
 }
 
 function AnimatedEarth({ size = 240 }: { size?: number }) {
+  return (
+    <RiveAnimation
+      source={riveAssets.hero}
+      style={{ width: size, height: size }}
+      fallback={<AnimatedEarthFallback size={size} />}
+    />
+  );
+}
+
+function AnimatedEarthFallback({ size = 240 }: { size?: number }) {
   const rotate = useSharedValue(0);
   const halo = useSharedValue(0);
   const float = useSharedValue(0);
@@ -333,6 +344,16 @@ function Star({
 }
 
 function AnimatedLocationPin({ active, size = 260 }: { active: boolean; size?: number }) {
+  return (
+    <RiveAnimation
+      source={riveAssets.pin}
+      style={{ width: size, height: size }}
+      fallback={<AnimatedLocationPinFallback active={active} size={size} />}
+    />
+  );
+}
+
+function AnimatedLocationPinFallback({ active, size = 260 }: { active: boolean; size?: number }) {
   const drop = useSharedValue(0);
   const ripple1 = useSharedValue(0);
   const ripple2 = useSharedValue(0);

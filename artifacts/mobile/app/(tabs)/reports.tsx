@@ -20,6 +20,8 @@ import { fetchNearbySpecies } from "@/services/iNaturalist";
 import { withCache } from "@/services/cache";
 import { getEcosystemRoles, getRoleLabel, buildImpactChain } from "@/services/ecologyModel";
 import { useColors } from "@/hooks/useColors";
+import { RiveEmptyState } from "@/components/RiveEmptyState";
+import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
 
 type ReportType = "consumer" | "policy";
 
@@ -167,7 +169,7 @@ export default function ReportsScreen() {
   const [selectedStakeholder, setSelectedStakeholder] = useState<string | null>(null);
   const [editableEmail, setEditableEmail] = useState("");
 
-  const { data: species } = useQuery({
+  const { data: species, isLoading: speciesLoading } = useQuery({
     queryKey: ["nearby-species", lat, lng, radius],
     queryFn: () =>
       withCache(`nearby-${lat}-${lng}-${radius}`, () =>
@@ -255,6 +257,20 @@ export default function ReportsScreen() {
         </View>
 
         {/* Featured species */}
+        {speciesLoading && !topSpecies ? (
+          <View style={[styles.featuredCard, { backgroundColor: "#0F1824", borderColor: "#1E293B", alignItems: "center" }]}>
+            <RiveLoadingShimmer hero width={120} height={120} />
+          </View>
+        ) : null}
+        {!speciesLoading && !topSpecies ? (
+          <View style={[styles.featuredCard, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}>
+            <RiveEmptyState
+              icon="map-pin"
+              title="No nearby species yet"
+              description="Set or refresh your location to generate a report."
+            />
+          </View>
+        ) : null}
         {topSpecies && (
           <View style={[styles.featuredCard, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}>
             <View style={styles.featuredHeader}>

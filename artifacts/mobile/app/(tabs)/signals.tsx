@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SignalCard, type Signal, type SignalType } from "@/components/SignalCard";
-import { LoadingShimmer } from "@/components/LoadingShimmer";
+import { RiveEmptyState } from "@/components/RiveEmptyState";
+import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
 import { useLocation } from "@/context/LocationContext";
 import {
   fetchNearbySpecies,
@@ -168,24 +169,18 @@ export default function SignalsScreen() {
 
         {isLoading ? (
           <View style={styles.skeletons}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <View key={i} style={[styles.skeletonCard, { backgroundColor: "#0F1824" }]}>
-                <LoadingShimmer width={40} height={40} borderRadius={12} />
-                <View style={{ flex: 1, gap: 6 }}>
-                  <LoadingShimmer width="70%" height={14} />
-                  <LoadingShimmer width="50%" height={12} />
-                  <LoadingShimmer width="90%" height={12} />
-                </View>
-              </View>
-            ))}
+            <RiveLoadingShimmer hero width={140} height={140} />
+            <Text style={[styles.caveatText, { color: "#64748B", textAlign: "center" }]}>
+              Comparing recent observations against historical baselines…
+            </Text>
           </View>
         ) : signals.length === 0 ? (
           <View style={[styles.empty, { backgroundColor: "#0F1824" }]}>
-            <Feather name="activity" size={28} color="#334155" />
-            <Text style={styles.emptyTitle}>No signals detected</Text>
-            <Text style={styles.emptyDesc}>
-              Not enough historical data to compare. Try a larger radius or check back after more community observations accumulate.
-            </Text>
+            <RiveEmptyState
+              icon="activity"
+              title="No signals detected"
+              description="Not enough historical data to compare. Try a larger radius or check back after more community observations accumulate."
+            />
           </View>
         ) : (
           <>

@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { RiveLoadingShimmer } from "@/components/RiveLoadingShimmer";
 import { fetchSpeciesById } from "@/services/iNaturalist";
 import { buildImpactChain, type ImpactNode } from "@/services/ecologyModel";
 
@@ -147,9 +148,7 @@ export default function ImpactScreen() {
 
         {isLoading || !chain ? (
           <View style={styles.loadingState}>
-            <Animated.View
-              style={[styles.loadingOrb, { opacity: glowAnim, backgroundColor: "#14532D" }]}
-            />
+            <RiveLoadingShimmer hero width={120} height={120} />
             <Text style={[styles.loadingText, { color: "#64748B" }]}>
               Modeling ecological impact…
             </Text>
