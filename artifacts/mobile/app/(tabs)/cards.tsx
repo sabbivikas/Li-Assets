@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenPadding } from "@/theme";
 import Svg, { Circle, Path } from "react-native-svg";
 
 import { LifeCardView } from "@/components/LifeCardView";
@@ -136,8 +137,7 @@ export default function CardsScreen() {
     return { active, missing, newish };
   }, [cards]);
 
-  const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+  const { top: screenTop, bottom: screenBottom } = useScreenPadding({ hasTabBar: true });
 
   function openCard(c: LifeCard) {
     Haptics.selectionAsync();
@@ -154,8 +154,8 @@ export default function CardsScreen() {
         contentContainerStyle={[
           styles.scroll,
           {
-            paddingTop: topInsets + 16,
-            paddingBottom: bottomInsets + 110,
+            paddingTop: screenTop,
+            paddingBottom: screenBottom,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -543,7 +543,7 @@ function EmptyState({ onExplore }: { onExplore: () => void }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PAINT.paper },
-  scroll: { paddingHorizontal: 16 },
+  scroll: { paddingHorizontal: 20 },
 
   kicker: {
     fontFamily: LABEL_FONT,

@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenPadding } from "@/theme";
 
 import {
   Bee,
@@ -111,8 +112,7 @@ export default function ReportsScreen() {
   const [saved, setSaved] = useState<SavedReport[]>([]);
   const [savedConfirm, setSavedConfirm] = useState(false);
 
-  const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+  const { top: screenTop, bottom: screenBottom } = useScreenPadding({ hasTabBar: true });
 
   // Data
   const { data: nearby, isLoading: nearbyLoading } = useQuery({
@@ -320,8 +320,8 @@ export default function ReportsScreen() {
         contentContainerStyle={[
           styles.scroll,
           {
-            paddingTop: topInsets + 16,
-            paddingBottom: bottomInsets + 110,
+            paddingTop: screenTop,
+            paddingBottom: screenBottom,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -1222,7 +1222,7 @@ function SavedModal({
 /* ============================================================ */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PAINT.paper },
-  scroll: { paddingHorizontal: 16 },
+  scroll: { paddingHorizontal: 20 },
 
   headerRow: {
     flexDirection: "row",

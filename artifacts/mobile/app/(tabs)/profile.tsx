@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenPadding } from "@/theme";
 
 import { BadgeMedal } from "@/components/BadgeMedal";
 import {
@@ -52,6 +53,7 @@ function initialsFor(name: string | null | undefined, email: string | undefined)
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { top: screenTop, bottom: screenBottom } = useScreenPadding({ hasTabBar: true });
   const router = useRouter();
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
@@ -235,7 +237,7 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 120 },
+          { paddingTop: screenTop, paddingBottom: screenBottom },
         ]}
         showsVerticalScrollIndicator={false}
       >

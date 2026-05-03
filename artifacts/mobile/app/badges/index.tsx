@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenPadding } from "@/theme";
 
 import { BadgeMedal } from "@/components/BadgeMedal";
 import {
@@ -38,6 +39,7 @@ type LockFilter = "all" | "unlocked" | "locked";
 
 export default function BadgesScreen() {
   const insets = useSafeAreaInsets();
+  const { top: screenTop, bottom: screenBottom } = useScreenPadding({ hasTabBar: false });
   const router = useRouter();
   const [cards, setCards] = useState<StoredCard[]>([]);
   const [reports, setReports] = useState<SavedReport[]>([]);
@@ -106,7 +108,7 @@ export default function BadgesScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 60 },
+          { paddingTop: screenTop, paddingBottom: screenBottom },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -314,7 +316,7 @@ function BadgeGridItem({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: PAINT.paper },
-  scroll: { paddingHorizontal: 16, alignItems: "stretch" },
+  scroll: { paddingHorizontal: 20, alignItems: "stretch" },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",

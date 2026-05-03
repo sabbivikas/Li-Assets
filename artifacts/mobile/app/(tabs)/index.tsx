@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenPadding } from "@/theme";
 
 import {
   Bee,
@@ -338,8 +339,7 @@ export default function HomeScreen() {
 
   const topSpecies = species?.slice(0, 3) || [];
 
-  const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+  const { top: screenTop, bottom: screenBottom } = useScreenPadding({ hasTabBar: true });
 
   const TopCritter = stats.topSpecies?.group
     ? GROUP_CRITTER[stats.topSpecies.group] ?? Flower
@@ -383,7 +383,7 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: topInsets + 12, paddingBottom: bottomInsets + 100 },
+          { paddingTop: screenTop, paddingBottom: screenBottom },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={

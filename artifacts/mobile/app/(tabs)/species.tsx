@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenPadding } from "@/theme";
 
 import {
   Bee,
@@ -98,15 +99,14 @@ export default function SpeciesScreen() {
     return result;
   }, [data, selectedGroup, search]);
 
-  const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+  const { top: screenTop, bottom: screenBottom } = useScreenPadding({ hasTabBar: true });
 
   return (
     <View style={styles.container}>
       <PaperBackground />
 
       {/* Header (fixed) */}
-      <View style={[styles.header, { paddingTop: topInsets + 18 }]}>
+      <View style={[styles.header, { paddingTop: screenTop }]}>
         <Text style={styles.title}>Local Species</Text>
         <CrayonUnderline width={180} color={PAINT.grass} seed={3} />
         <Text style={styles.subtitle}>
@@ -187,7 +187,7 @@ export default function SpeciesScreen() {
         </View>
       ) : filtered.length === 0 ? (
         <ScrollView
-          contentContainerStyle={[styles.empty, { paddingBottom: bottomInsets + 100 }]}
+          contentContainerStyle={[styles.empty, { paddingBottom: screenBottom }]}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
           }
@@ -206,7 +206,7 @@ export default function SpeciesScreen() {
           keyExtractor={(item) => String(item.taxon.id)}
           contentContainerStyle={[
             styles.list,
-            { paddingBottom: bottomInsets + 110 },
+            { paddingBottom: screenBottom },
           ]}
           showsVerticalScrollIndicator={false}
           onRefresh={refetch}
@@ -294,7 +294,7 @@ function SpeciesRow({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PAINT.paper },
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 12,
     gap: 6,
   },
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     color: PAINT.inkSoft,
     marginLeft: 2,
   },
-  list: { paddingHorizontal: 16, paddingTop: 12 },
+  list: { paddingHorizontal: 20, paddingTop: 12 },
   row: {
     flex: 1,
     flexDirection: "row",

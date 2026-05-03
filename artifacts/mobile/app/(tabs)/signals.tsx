@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenPadding } from "@/theme";
 
 import {
   Bee,
@@ -195,8 +196,7 @@ export default function SignalsScreen() {
   const newObs = signals.filter((s) => s.type === "new");
   const increases = signals.filter((s) => s.type === "increasing");
 
-  const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+  const { top: screenTop, bottom: screenBottom } = useScreenPadding({ hasTabBar: true });
 
   return (
     <View style={styles.container}>
@@ -205,8 +205,8 @@ export default function SignalsScreen() {
         contentContainerStyle={[
           styles.scroll,
           {
-            paddingTop: topInsets + 18,
-            paddingBottom: bottomInsets + 110,
+            paddingTop: screenTop,
+            paddingBottom: screenBottom,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -381,7 +381,7 @@ function SignalCard({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PAINT.paper },
-  scroll: { paddingHorizontal: 16 },
+  scroll: { paddingHorizontal: 20 },
   title: {
     fontFamily: HAND_FONT,
     fontSize: 34,

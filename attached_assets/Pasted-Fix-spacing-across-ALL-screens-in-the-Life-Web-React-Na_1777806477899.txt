@@ -1,0 +1,95 @@
+Fix spacing across ALL screens in the Life Web React Native Expo app.
+
+Goal:
+Create one consistent spacing system and apply it globally across every screen, component, card, list, tab, modal, bottom sheet, onboarding screen, profile screen, reports screen, badge screen, home screen, species screen, signals screen, and Life Cards screen.
+
+Do not only fix Badge Case.
+Do not patch one screen.
+Audit the entire app and normalize spacing everywhere.
+
+Create a global design system file:
+- theme/spacing.ts
+- theme/layout.ts
+- theme/typography.ts if needed
+
+Spacing scale:
+const spacing = {
+  xxs: 2,
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+  huge: 40
+};
+
+Global layout rules:
+- Screen horizontal padding: 20
+- Top safe area padding: 16–24
+- Bottom safe area padding: 32
+- Section gap: 24
+- Card gap: 16
+- Grid gap: 16
+- Chip gap: 8
+- Title to subtitle: 8
+- Subtitle to content: 16
+- Header to first section: 20
+- Button top margin: 16
+- List item gap: 12
+- Modal padding: 20
+- Bottom sheet padding: 20
+
+Apply this to every screen:
+1. Home
+2. Species
+3. Signals
+4. Reports
+5. Profile
+6. Badge Case
+7. Life Cards collection
+8. Species Detail
+9. Impact Simulation
+10. Report Preview
+11. Email Approval
+12. Onboarding
+13. Settings
+14. Any modal or bottom sheet
+
+Specific fixes:
+- Make all screen containers use the same horizontal padding unless map/full-bleed visual requires edge-to-edge.
+- Full-bleed sections like maps can extend wider, but content below must align to the same grid.
+- Normalize all section headers.
+- Normalize all cards to consistent internal padding.
+- Normalize all buttons and chips.
+- Fix cramped areas by increasing vertical spacing.
+- Fix floating areas by reducing excessive gaps.
+- Ensure every list and grid has consistent item spacing.
+- Ensure bottom tab bar does not overlap content.
+- Add enough bottom padding for scroll screens.
+- Ensure safe area handling on iPhone with Dynamic Island.
+- Keep spacing responsive for small and large phones.
+
+Component-level requirements:
+- Create reusable ScreenContainer component.
+- Create reusable Section component with title/subtitle spacing.
+- Create reusable Card component with default padding.
+- Create reusable ChipGroup component with consistent gap.
+- Create reusable Grid component with consistent column gap and row gap.
+- Replace hardcoded random margin/padding values with theme spacing tokens.
+
+Visual quality rules:
+- Every screen should feel intentional, breathable, and premium.
+- No cramped headers.
+- No cards touching edges.
+- No uneven chip rows.
+- No inconsistent grid spacing.
+- No random margin values.
+- No bottom content hidden behind tab bar.
+- No screen should feel visually heavier at the top than the bottom.
+
+Run through the app after refactor and fix layout issues screen by screen.
+
+Final outcome:
+The entire app should feel like one polished design system, not separate screens built independently.
