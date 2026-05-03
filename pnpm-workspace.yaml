@@ -158,3 +158,28 @@ overrides:
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
+  # ----------------------------------------------------------------
+  # Security overrides — force safe versions of transitive dependencies.
+  # Each line maps to one or more advisories from `pnpm audit`.
+  # ----------------------------------------------------------------
+  # GHSA-f886-m6hf-6m8v — brace-expansion ReDoS / hang on zero-step
+  brace-expansion: "^2.0.3"
+  # GHSA-c2c7-rcm5-vvqj, GHSA-3v7f-55p6-f55p — picomatch ReDoS &
+  # POSIX class method injection. Range overrides keep both v2 (used
+  # by micromatch) and v4 (used by tinyglobby) on patched lines.
+  "picomatch@<2.3.2": "^2.3.2"
+  "picomatch@>=3.0.0 <4.0.0": "^4.0.4"
+  "picomatch@>=4.0.0 <4.0.4": "^4.0.4"
+  # GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7 — path-to-regexp v8 ReDoS
+  "path-to-regexp@>=8.0.0 <8.4.0": "^8.4.2"
+  # GHSA-r5fr-rjxr-66jc, GHSA-f23m-r3pf-42rh — lodash code injection /
+  # prototype pollution (only patched on the 4.18.x line).
+  lodash: "^4.18.1"
+  # GHSA-48c2-rrv3-qjmp — yaml stack overflow on deeply nested input
+  yaml: "^2.8.4"
+  # GHSA-qx2v-qp2m-jg93 — postcss XSS via unescaped </style>
+  postcss: "^8.5.13"
+  # GHSA-w5hq-g745-h8pq — uuid bounds check on v3/v5/v6 with `buf`.
+  # xcode/ngrok pulled in by Expo CLI use the legacy v1/v3 APIs that
+  # remain available in v14, so the override is compatible.
+  uuid: "^14.0.0"
