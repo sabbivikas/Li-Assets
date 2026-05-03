@@ -1,14 +1,33 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
-interface SpeciesPin {
+export interface SpeciesPin {
   id: number;
+  taxonId?: number;
   name: string;
+  scientificName?: string;
   lat: number;
   lng: number;
   color?: string;
   photoUrl?: string;
+  /** 0..1 — drives marker size and ring intensity. */
+  importance?: number;
+  role?: string;
+  group?: string;
+  observationCount?: number;
+}
+
+export interface PinTapPayload {
+  id: number;
+  taxonId?: number;
+  name: string;
+  scientificName?: string;
+  photoUrl?: string;
+  role?: string;
+  roleColor?: string;
+  group?: string;
+  observationCount?: number;
 }
 
 interface Props {
@@ -17,6 +36,8 @@ interface Props {
   radiusKm?: number;
   pins?: SpeciesPin[];
   height?: number;
+  onPinSelect?: (pin: PinTapPayload) => void;
+  selectedPinId?: number | null;
 }
 
 function buildLeafletHtml(
@@ -25,7 +46,13 @@ function buildLeafletHtml(
   radiusKm: number,
   pins: SpeciesPin[],
 ): string {
-  const pinsJson = JSON.stringify(pins);
+  // Escape angle brackets and JS line separators so untrusted pin name /
+  // scientificName values cannot break out of the inline <script> tag.
+  const pinsJson = JSON.stringify(pins)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -98,7 +125,7 @@ function buildLeafletHtml(
     border-radius: 50%;
     background: #4ADE80;
     opacity: 0.4;
-    animation: pulse 2.2s ease-out infinite;
+    animation: userpulse 2.2s ease-out infinite;
   }
   .user-pin::after {
     content: '';
@@ -107,17 +134,29 @@ function buildLeafletHtml(
     border-radius: 50%;
     background: #4ADE80;
     opacity: 0.18;
-    animation: pulse 2.2s 0.4s ease-out infinite;
+    animation: userpulse 2.2s 0.4s ease-out infinite;
   }
-  @keyframes pulse {
+  @keyframes userpulse {
     0% { transform: scale(0.55); opacity: 0.65; }
     100% { transform: scale(1.6); opacity: 0; }
   }
 
+  /* Photo pin wrapper — gentle floating animation */
+  .pin-wrap {
+    animation: float var(--float-dur, 4.2s) ease-in-out infinite;
+    animation-delay: var(--float-delay, 0s);
+    cursor: pointer;
+    will-change: transform;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
   /* Photo pin — circular avatar with tinted glowing ring */
   .photo-pin {
-    width: 38px;
-    height: 38px;
+    width: 100%;
+    height: 100%;
     border-radius: 50%;
     background-size: cover;
     background-position: center;
@@ -125,57 +164,98 @@ function buildLeafletHtml(
     border: 2px solid var(--ring, #4ADE80);
     box-shadow:
       0 0 0 2px rgba(4, 16, 31, 0.9),
-      0 0 12px var(--ring, #4ADE80),
+      0 0 var(--glow, 12px) var(--ring, #4ADE80),
       0 4px 10px rgba(0,0,0,0.55);
-    transition: transform 160ms ease;
+    transition: transform 200ms ease, box-shadow 200ms ease, border-width 120ms ease;
+    position: relative;
   }
-  .photo-pin:hover { transform: scale(1.12); }
+  .photo-pin::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px solid var(--ring, #4ADE80);
+    opacity: 0.45;
+    pointer-events: none;
+    animation: ringpulse 3.6s ease-in-out infinite;
+    animation-delay: var(--float-delay, 0s);
+  }
+  @keyframes ringpulse {
+    0%, 100% { transform: scale(1); opacity: 0.45; }
+    50% { transform: scale(1.22); opacity: 0; }
+  }
+  .photo-pin:hover { transform: scale(1.1); }
+  .photo-pin.is-selected {
+    transform: scale(1.18);
+    border-width: 3px;
+    box-shadow:
+      0 0 0 2px rgba(4, 16, 31, 0.95),
+      0 0 24px var(--ring, #4ADE80),
+      0 0 48px var(--ring, #4ADE80),
+      0 6px 16px rgba(0,0,0,0.7);
+    z-index: 999 !important;
+  }
 
-  /* Fallback pin when no photo is available */
+  /* Fallback dot pin when no photo is available */
   .dot-pin {
-    width: 16px;
-    height: 16px;
+    width: 100%;
+    height: 100%;
     border-radius: 50%;
     background: var(--ring, #4ADE80);
     border: 2px solid rgba(255,255,255,0.9);
     box-shadow: 0 0 10px var(--ring, #4ADE80), 0 2px 6px rgba(0,0,0,0.5);
+    cursor: pointer;
   }
 
-  /* Cluster bubble */
-  .marker-cluster-custom {
-    background: rgba(74, 222, 128, 0.18);
-    border-radius: 999px;
-    backdrop-filter: blur(4px);
-  }
-  .marker-cluster-custom div {
-    width: 36px;
-    height: 36px;
-    margin: 4px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #14532D 0%, #0F2027 100%);
-    border: 2px solid #4ADE80;
-    box-shadow: 0 0 14px rgba(74, 222, 128, 0.6), 0 4px 10px rgba(0,0,0,0.45);
+  /* Photo-stack cluster bubble */
+  .photo-cluster {
+    position: relative;
+    height: 38px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    cursor: pointer;
+  }
+  .photo-cluster .cp {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    background-color: #0F1824;
+    border: 2px solid #0B1320;
+    box-shadow:
+      0 0 12px rgba(74, 222, 128, 0.55),
+      0 4px 8px rgba(0,0,0,0.6);
+    position: absolute;
+    transition: transform 160ms ease;
+  }
+  .photo-cluster:hover .cp { transform: translateY(-2px); }
+  .photo-cluster .cp1 { left: 0; z-index: 4; }
+  .photo-cluster .cp2 { left: 18px; z-index: 3; }
+  .photo-cluster .cp3 { left: 36px; z-index: 2; }
+  .photo-cluster .cp4 { left: 54px; z-index: 1; }
+  .photo-cluster .cluster-badge {
+    position: absolute;
+    top: -2px;
+    right: -10px;
+    min-width: 24px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #14532D 0%, #0F2027 100%);
+    border: 1.5px solid #4ADE80;
+    box-shadow: 0 0 10px rgba(74,222,128,0.55), 0 3px 8px rgba(0,0,0,0.55);
     color: #ECFDF5;
     font-family: -apple-system, system-ui, sans-serif;
     font-weight: 700;
-    font-size: 13px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
   }
-  .marker-cluster-custom-lg div { background: linear-gradient(135deg, #166534 0%, #0F2027 100%); }
 
-  .leaflet-popup-content-wrapper {
-    background: rgba(15, 24, 36, 0.95) !important;
-    color: #F8FAFC !important;
-    border-radius: 12px !important;
-    border: 1px solid #1E293B;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
-  }
-  .leaflet-popup-content { margin: 10px 14px !important; font-family: -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; }
-  .leaflet-popup-tip { background: rgba(15, 24, 36, 0.95) !important; border: 1px solid #1E293B; }
-  .leaflet-popup-close-button { color: #64748B !important; }
+  .leaflet-popup, .leaflet-popup-pane { display: none !important; }
 </style>
 </head>
 <body>
@@ -183,12 +263,13 @@ function buildLeafletHtml(
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
-  const lat = ${lat};
-  const lng = ${lng};
-  const radiusKm = ${radiusKm};
-  const pins = ${pinsJson};
+(function() {
+  var lat = ${lat};
+  var lng = ${lng};
+  var radiusKm = ${radiusKm};
+  var pins = ${pinsJson};
 
-  const map = L.map('map', {
+  var map = L.map('map', {
     center: [lat, lng],
     zoom: 12,
     zoomControl: true,
@@ -203,7 +284,7 @@ function buildLeafletHtml(
     maxZoom: 19,
   }).addTo(map);
 
-  // Radius circle — glowing search ring
+  // Glowing radius rings
   L.circle([lat, lng], {
     radius: radiusKm * 1000,
     color: '#4ADE80',
@@ -213,7 +294,6 @@ function buildLeafletHtml(
     fillOpacity: 0.06,
     dashArray: '4, 6',
   }).addTo(map);
-
   L.circle([lat, lng], {
     radius: radiusKm * 1000 * 0.6,
     color: '#22D3EE',
@@ -224,72 +304,147 @@ function buildLeafletHtml(
   }).addTo(map);
 
   // User location marker
-  const userIcon = L.divIcon({
+  var userIcon = L.divIcon({
     className: 'user-pin-wrap',
     html: '<div class="user-pin"></div>',
     iconSize: [22, 22],
     iconAnchor: [11, 11],
   });
-  L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 })
-    .addTo(map)
-    .bindPopup('<b>You are here</b>');
+  L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 }).addTo(map);
 
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, (c) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[c]);
-  }
-
-  // Cluster group — collapses overlapping markers into a counted bubble
-  const cluster = L.markerClusterGroup({
-    showCoverageOnHover: false,
-    maxClusterRadius: 42,
-    spiderfyOnMaxZoom: true,
-    iconCreateFunction: (c) => {
-      const count = c.getChildCount();
-      const sizeClass = count >= 10 ? ' marker-cluster-custom-lg' : '';
-      return L.divIcon({
-        html: '<div><span>' + count + '</span></div>',
-        className: 'marker-cluster-custom' + sizeClass,
-        iconSize: L.point(44, 44),
-      });
-    },
-  });
-
-  // Conservatively encode any photo URL before injecting into HTML/CSS.
-  // Allows only http(s) URLs; fully encodes special characters.
   function safeUrl(u) {
     if (typeof u !== 'string') return '';
     if (!/^https?:\\/\\//i.test(u)) return '';
     return encodeURI(u).replace(/['"<>\\\\]/g, encodeURIComponent);
   }
 
-  pins.forEach((p) => {
-    const ring = p.color || '#FBBF24';
-    const safeName = escapeHtml(p.name);
-    const url = safeUrl(p.photoUrl);
-    const html = url
-      ? '<div class="photo-pin" style="--ring:' + ring + ';background-image:url(&quot;' + url + '&quot;);"></div>'
+  function postPinTap(p) {
+    var payload = {
+      type: 'pin-tap',
+      pin: {
+        id: p.id,
+        taxonId: p.taxonId,
+        name: p.name,
+        scientificName: p.scientificName,
+        photoUrl: p.photoUrl,
+        role: p.role,
+        roleColor: p.color,
+        group: p.group,
+        observationCount: p.observationCount,
+      },
+    };
+    try {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+      } else if (window.parent && window.parent !== window) {
+        window.parent.postMessage(payload, '*');
+      }
+    } catch (e) {}
+  }
+
+  // Track currently selected pin element so we can deselect later
+  var selectedEl = null;
+  function setSelected(el) {
+    if (selectedEl && selectedEl !== el) {
+      selectedEl.classList.remove('is-selected');
+    }
+    selectedEl = el || null;
+    if (selectedEl) selectedEl.classList.add('is-selected');
+  }
+  // Expose so the host can clear selection when sheet closes
+  window.__deselectPin = function() { setSelected(null); };
+  window.addEventListener('message', function(e) {
+    if (e && e.data && e.data.type === 'deselect') setSelected(null);
+  });
+
+  // Cluster group — photo-stack icons
+  var cluster = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 52,
+    spiderfyOnMaxZoom: true,
+    iconCreateFunction: function(c) {
+      var children = c.getAllChildMarkers();
+      var photos = [];
+      for (var i = 0; i < children.length && photos.length < 4; i++) {
+        var u = children[i].options._photoUrl;
+        if (u) photos.push(u);
+      }
+      var count = c.getChildCount();
+      var stackHtml = '';
+      for (var j = 0; j < photos.length; j++) {
+        stackHtml += '<div class="cp cp' + (j + 1) + '" style="background-image:url(&quot;' + photos[j] + '&quot;);"></div>';
+      }
+      var badge = '<div class="cluster-badge">+' + count + '</div>';
+      var w = Math.max(photos.length, 1) * 18 + 28;
+      return L.divIcon({
+        html: '<div class="photo-cluster" style="width:' + w + 'px;">' + stackHtml + badge + '</div>',
+        className: '',
+        iconSize: L.point(w + 12, 44),
+      });
+    },
+  });
+
+  // Build markers (cap at 30 for performance)
+  var capped = pins.slice(0, 30);
+  capped.forEach(function(p, idx) {
+    var ring = p.color || '#FBBF24';
+    var imp = Math.max(0, Math.min(1, typeof p.importance === 'number' ? p.importance : 0.4));
+    var size = Math.round(30 + imp * 22); // 30..52px
+    var glow = Math.round(10 + imp * 14); // 10..24px
+    var url = safeUrl(p.photoUrl);
+    var inner = url
+      ? '<div class="photo-pin" style="--ring:' + ring + ';--glow:' + glow + 'px;background-image:url(&quot;' + url + '&quot;);"></div>'
       : '<div class="dot-pin" style="--ring:' + ring + ';"></div>';
-    const size = url ? 38 : 16;
-    const icon = L.divIcon({
+    // Random-ish but deterministic float delay for variety
+    var delay = ((idx * 137) % 1000) / 1000;
+    var dur = 3.6 + ((idx * 53) % 100) / 80;
+    var html =
+      '<div class="pin-wrap" style="--float-delay:' + delay.toFixed(2) + 's;--float-dur:' + dur.toFixed(2) + 's;width:' + size + 'px;height:' + size + 'px;">' +
+        inner +
+      '</div>';
+    var icon = L.divIcon({
       className: 'species-pin-wrap',
-      html,
+      html: html,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     });
-    const popupHtml = url
-      ? '<div style="display:flex;gap:8px;align-items:center;">'
-        + '<img src="' + url + '" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid #1E293B;" />'
-        + '<b>' + safeName + '</b></div>'
-      : '<b>' + safeName + '</b>';
-    L.marker([p.lat, p.lng], { icon }).bindPopup(popupHtml).addTo(cluster);
+    var marker = L.marker([p.lat, p.lng], {
+      icon: icon,
+      _photoUrl: url || undefined,
+      _pinData: p,
+      bubblingMouseEvents: false,
+    });
+    function handlePinTap(ev) {
+      if (ev) {
+        if (ev.stopPropagation) ev.stopPropagation();
+        if (ev.preventDefault) ev.preventDefault();
+      }
+      var el = marker.getElement();
+      var inner = el ? el.querySelector('.photo-pin, .dot-pin') : null;
+      if (inner) setSelected(inner);
+      postPinTap(p);
+    }
+    marker.on('click', handlePinTap);
+    // Fallback DOM-level binding so clicks on inner photo divs always work,
+    // even under headless test runners or when Leaflet's event delegation
+    // is intercepted by sibling pseudo-elements.
+    marker.on('add', function() {
+      var el = marker.getElement();
+      if (!el || el.__pinBound) return;
+      el.__pinBound = true;
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', handlePinTap, true);
+    });
+    cluster.addLayer(marker);
   });
   map.addLayer(cluster);
 
+  map.on('click', function() { setSelected(null); });
+
   // Fit map to circle bounds
-  const bounds = L.latLng(lat, lng).toBounds(radiusKm * 2200);
+  var bounds = L.latLng(lat, lng).toBounds(radiusKm * 2200);
   map.fitBounds(bounds, { padding: [16, 16] });
+})();
 </script>
 </body>
 </html>`;
@@ -301,16 +456,61 @@ export function LocationMap({
   radiusKm = 10,
   pins = [],
   height = 280,
+  onPinSelect,
+  selectedPinId,
 }: Props) {
   const html = useMemo(
     () => buildLeafletHtml(lat, lng, radiusKm, pins),
     [lat, lng, radiusKm, pins],
   );
 
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const webviewRef = useRef<WebView | null>(null);
+  const onPinSelectRef = useRef(onPinSelect);
+  useEffect(() => {
+    onPinSelectRef.current = onPinSelect;
+  }, [onPinSelect]);
+
+  // Listen for pin-tap messages from the iframe (web).
+  // We rely on the message shape to filter rather than e.source identity —
+  // srcdoc iframes use an opaque origin, and React 19 strict mode can
+  // re-mount the iframe so the contentWindow ref is not always reliable.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    function handler(e: MessageEvent) {
+      const data = e.data;
+      if (
+        !data ||
+        typeof data !== "object" ||
+        data.type !== "pin-tap" ||
+        !data.pin ||
+        typeof data.pin.id !== "number"
+      ) {
+        return;
+      }
+      onPinSelectRef.current?.(data.pin);
+    }
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  // Push deselect when selection is cleared from outside
+  useEffect(() => {
+    if (selectedPinId !== null && selectedPinId !== undefined) return;
+    if (Platform.OS === "web") {
+      iframeRef.current?.contentWindow?.postMessage({ type: "deselect" }, "*");
+    } else {
+      webviewRef.current?.injectJavaScript(
+        "window.__deselectPin && window.__deselectPin(); true;",
+      );
+    }
+  }, [selectedPinId]);
+
   if (Platform.OS === "web") {
     return (
       <View style={[styles.wrap, { height }]}>
         <iframe
+          ref={iframeRef}
           srcDoc={html}
           style={{
             width: "100%",
@@ -329,6 +529,7 @@ export function LocationMap({
   return (
     <View style={[styles.wrap, { height }]}>
       <WebView
+        ref={webviewRef}
         originWhitelist={["*"]}
         source={{ html }}
         style={styles.webview}
@@ -338,6 +539,16 @@ export function LocationMap({
         domStorageEnabled
         androidLayerType="hardware"
         setSupportMultipleWindows={false}
+        onMessage={(event) => {
+          try {
+            const data = JSON.parse(event.nativeEvent.data);
+            if (data?.type === "pin-tap" && data.pin) {
+              onPinSelectRef.current?.(data.pin);
+            }
+          } catch {
+            // ignore malformed messages
+          }
+        }}
       />
       <View style={styles.edgeFade} pointerEvents="none" />
     </View>
@@ -362,7 +573,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#04101F",
   },
-  // Outer soft edge that blends the map into the page background
   edgeFade: {
     position: "absolute",
     top: 0,

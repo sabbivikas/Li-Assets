@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -14,18 +14,28 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EarthGlobe } from "@/components/EarthGlobe";
-import { LocationMap } from "@/components/LocationMap";
-import { StatCard } from "@/components/StatCard";
-import { SpeciesCard } from "@/components/SpeciesCard";
+import { LocationMap, type SpeciesPin } from "@/components/LocationMap";
 import { LoadingShimmer, SpeciesCardSkeleton } from "@/components/LoadingShimmer";
+import {
+  SpeciesBottomSheet,
+  type SpeciesSelection,
+} from "@/components/SpeciesBottomSheet";
+import { SpeciesCard } from "@/components/SpeciesCard";
+import { StatCard } from "@/components/StatCard";
 import { useLocation } from "@/context/LocationContext";
+import { useColors } from "@/hooks/useColors";
+import { withCache } from "@/services/cache";
+import {
+  getEcosystemRoles,
+  getRoleColor,
+  getRoleLabel,
+} from "@/services/ecologyModel";
 import {
   fetchNearbySpecies,
   fetchRecentObservations,
   getIconicGroup,
 } from "@/services/iNaturalist";
-import { withCache } from "@/services/cache";
-import { useColors } from "@/hooks/useColors";
+import { generateInsights } from "@/services/insights";
 
 const GROUP_COLORS: Record<string, string> = {
   Birds: "#22D3EE",
@@ -39,6 +49,8 @@ const GROUP_COLORS: Record<string, string> = {
   Other: "#94A3B8",
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -46,6 +58,7 @@ export default function HomeScreen() {
   const { lat, lng, radius, cityName, permissionGranted, requestLocation } =
     useLocation();
   const [requestingLoc, setRequestingLoc] = useState(false);
+  const [selection, setSelection] = useState<SpeciesSelection | null>(null);
 
   async function handleUseMyLocation() {
     setRequestingLoc(true);
@@ -66,7 +79,6 @@ export default function HomeScreen() {
     enabled: !!lat && !!lng,
   });
 
-  // Real recent observations (with coords) — only fetched when location is granted
   const { data: observations } = useQuery({
     queryKey: ["recent-observations", lat, lng, radius],
     queryFn: () =>
@@ -76,53 +88,131 @@ export default function HomeScreen() {
     enabled: permissionGranted && !!lat && !!lng,
   });
 
-  const mapPins = React.useMemo(() => {
+  // Build importance-weighted map pins from the observations dataset.
+  // Importance = base + role boost + frequency boost (same species seen often).
+  const mapPins: SpeciesPin[] = useMemo(() => {
     if (!observations) return [];
-    return observations
-      .map((o) => {
+
+    // Count how often each species appears in the observations window.
+    const speciesCounts: Record<number, number> = {};
+    observations.forEach((o) => {
+      const id = o.taxon?.id;
+      if (typeof id === "number") {
+        speciesCounts[id] = (speciesCounts[id] || 0) + 1;
+      }
+    });
+    const maxFreq = Math.max(1, ...Object.values(speciesCounts));
+
+    const pins = observations
+      .map<SpeciesPin | null>((o) => {
         if (!o.location) return null;
         const [obsLat, obsLng] = o.location.split(",").map(Number);
         if (!isFinite(obsLat) || !isFinite(obsLng)) return null;
-        const group = getIconicGroup(o.taxon?.iconic_taxon_name);
+        const taxon = o.taxon;
+        const group = getIconicGroup(taxon?.iconic_taxon_name);
+        const roles = getEcosystemRoles(
+          taxon?.iconic_taxon_name,
+          taxon?.preferred_common_name,
+        );
+        const primaryRole = roles[0];
+        // Role boost: pollinators, predators, indicators, primary producers
+        // are more important to the local web than generic prey/generalists.
+        const keyRoles = new Set([
+          "pollinator",
+          "predator",
+          "indicator",
+          "primary_producer",
+        ]);
+        const roleBoost = keyRoles.has(primaryRole)
+          ? 1
+          : primaryRole === "decomposer" || primaryRole === "seed_disperser"
+            ? 0.6
+            : 0.2;
+
+        const freq = (taxon?.id && speciesCounts[taxon.id]) || 1;
+        const freqBoost = freq / maxFreq;
+
+        const importance = Math.min(
+          1,
+          0.25 + roleBoost * 0.45 + freqBoost * 0.3,
+        );
+
+        const ringColor = getRoleColor(primaryRole);
+
         return {
           id: o.id,
+          taxonId: taxon?.id,
           name:
-            o.taxon?.preferred_common_name ||
-            o.taxon?.name ||
-            "Observation",
+            taxon?.preferred_common_name || taxon?.name || "Observation",
+          scientificName: taxon?.name,
           lat: obsLat,
           lng: obsLng,
-          color: GROUP_COLORS[group] || GROUP_COLORS.Other,
+          color: ringColor,
           photoUrl:
-            o.taxon?.default_photo?.square_url ||
-            o.taxon?.default_photo?.medium_url,
+            taxon?.default_photo?.square_url ||
+            taxon?.default_photo?.medium_url,
+          importance,
+          role: getRoleLabel(primaryRole),
+          group,
+          observationCount: taxon?.observations_count,
         };
       })
-      .filter((p): p is NonNullable<typeof p> => p !== null);
+      .filter((p): p is SpeciesPin => p !== null);
+
+    // Sort by importance desc and cap at 25 visible markers
+    return pins.sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0)).slice(0, 25);
   }, [observations]);
 
+  const insights = useMemo(
+    () => generateInsights(observations, species),
+    [observations, species],
+  );
+
+  // Stats are derived from the same observations dataset whenever possible
+  // so the map and the cards tell the same story.
+  const stats = useMemo(() => {
+    const obs = observations ?? [];
+    const uniqueSpecies = new Set(
+      obs.map((o) => o.taxon?.id).filter((x): x is number => typeof x === "number"),
+    ).size;
+
+    // Most common group in the observations window
+    const groupCounts: Record<string, number> = {};
+    obs.forEach((o) => {
+      const g = getIconicGroup(o.taxon?.iconic_taxon_name);
+      groupCounts[g] = (groupCounts[g] || 0) + 1;
+    });
+    const topGroup = Object.entries(groupCounts).sort((a, b) => b[1] - a[1])[0];
+
+    // Active in the last 7 days
+    const now = Date.now();
+    const activeNow = obs.filter((o) => {
+      if (!o.observed_on) return false;
+      const t = Date.parse(o.observed_on);
+      return isFinite(t) && now - t <= 7 * DAY_MS;
+    }).length;
+
+    // At-risk: from species list (has conservation_status), fallback to obs taxa
+    const atRisk = (species ?? []).filter((s) => {
+      const cs = s.taxon.conservation_status?.status?.toUpperCase();
+      return cs && ["CR", "EN", "VU"].includes(cs);
+    }).length;
+
+    return {
+      uniqueSpecies: uniqueSpecies || species?.length || 0,
+      topGroup,
+      activeNow,
+      atRisk,
+    };
+  }, [observations, species]);
+
   const topSpecies = species?.slice(0, 3) || [];
-
-  const groupCounts: Record<string, number> = {};
-  species?.forEach((s) => {
-    const g = getIconicGroup(s.taxon.iconic_taxon_name);
-    groupCounts[g] = (groupCounts[g] || 0) + 1;
-  });
-  const topGroup = Object.entries(groupCounts).sort((a, b) => b[1] - a[1])[0];
-
-  const threatenedCount = species?.filter((s) => {
-    const cs = s.taxon.conservation_status?.status?.toUpperCase();
-    return cs && ["CR", "EN", "VU"].includes(cs);
-  }).length || 0;
-
-  const totalSpecies = species?.length || 0;
 
   const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
   const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.earthDark }]}>
-      {/* Soft background glow */}
       <View style={styles.bgGlow} pointerEvents="none" />
 
       <ScrollView
@@ -150,14 +240,14 @@ export default function HomeScreen() {
             </View>
           </View>
           <Pressable
-            onPress={() => router.push("/(tabs)/species" as any)}
+            onPress={() => router.push("/(tabs)/species" as never)}
             style={styles.exploreBtn}
           >
             <Feather name="compass" size={18} color="#4ADE80" />
           </Pressable>
         </View>
 
-        {/* Hero visual: real map when location is granted, animated Earth otherwise */}
+        {/* Hero map / globe */}
         {permissionGranted && lat && lng ? (
           <View style={styles.mapSection}>
             <LocationMap
@@ -165,13 +255,27 @@ export default function HomeScreen() {
               lng={lng}
               radiusKm={radius}
               pins={mapPins}
-              height={300}
+              height={340}
+              selectedPinId={selection?.id ?? null}
+              onPinSelect={(pin) => {
+                setSelection({
+                  id: pin.id,
+                  taxonId: pin.taxonId,
+                  name: pin.name,
+                  scientificName: pin.scientificName,
+                  role: pin.role,
+                  roleColor: pin.roleColor,
+                  photoUrl: pin.photoUrl,
+                  observationCount: pin.observationCount,
+                  group: pin.group,
+                });
+              }}
             />
             {mapPins.length > 0 && (
               <View style={styles.mapLegend}>
                 <Feather name="map-pin" size={11} color="#4ADE80" />
                 <Text style={styles.mapLegendText}>
-                  {mapPins.length} recent observations · last 30 days
+                  {mapPins.length} of {observations?.length ?? 0} sightings · last 30 days · tap a photo
                 </Text>
               </View>
             )}
@@ -203,17 +307,20 @@ export default function HomeScreen() {
         <View style={styles.heroBanner}>
           <View style={styles.heroDot} />
           <Text style={styles.heroText}>
-            {totalSpecies > 0
-              ? `Tracking ${totalSpecies} species within ${radius}km of ${cityName}`
+            {stats.uniqueSpecies > 0
+              ? `${stats.uniqueSpecies} species pulsing within ${radius}km of ${cityName ?? "you"}`
               : `Listening to the life web around ${cityName ?? "you"}`}
           </Text>
         </View>
 
-        {/* Stats row */}
+        {/* Stats row — every number derived from the same observations dataset */}
         {isLoading ? (
           <View style={styles.statsRow}>
             {[1, 2, 3].map((i) => (
-              <View key={i} style={[styles.statSkeleton, { backgroundColor: colors.card }]}>
+              <View
+                key={i}
+                style={[styles.statSkeleton, { backgroundColor: colors.card }]}
+              >
                 <LoadingShimmer width={36} height={36} borderRadius={10} />
                 <LoadingShimmer width="60%" height={20} borderRadius={6} />
                 <LoadingShimmer width="80%" height={12} borderRadius={6} />
@@ -224,29 +331,64 @@ export default function HomeScreen() {
           <View style={styles.statsRow}>
             <StatCard
               icon="layers"
-              value={totalSpecies}
+              value={stats.uniqueSpecies}
               label="Species Nearby"
               color="#4ADE80"
             />
             <StatCard
-              icon="alert-triangle"
-              value={threatenedCount}
-              label="Threatened"
-              color="#EF4444"
+              icon="zap"
+              value={stats.activeNow}
+              label="Active This Week"
+              color="#22D3EE"
             />
             <StatCard
               icon={
-                topGroup?.[0] === "Birds"
+                stats.topGroup?.[0] === "Birds"
                   ? "feather"
-                  : topGroup?.[0] === "Plants"
-                  ? "leaf"
-                  : "globe"
+                  : stats.topGroup?.[0] === "Plants"
+                    ? "leaf"
+                    : "globe"
               }
-              value={topGroup?.[1] || 0}
+              value={stats.topGroup?.[1] || 0}
               label="Most Common"
-              subtitle={topGroup?.[0]}
-              color="#22D3EE"
+              subtitle={stats.topGroup?.[0]}
+              color={
+                stats.topGroup?.[0]
+                  ? GROUP_COLORS[stats.topGroup[0]] || "#A78BFA"
+                  : "#A78BFA"
+              }
             />
+          </View>
+        )}
+
+        {/* What's happening here — insights derived from observations */}
+        {insights.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>What&apos;s happening here</Text>
+            <View style={styles.insightsList}>
+              {insights.map((ins) => (
+                <View
+                  key={ins.id}
+                  style={[
+                    styles.insightCard,
+                    { borderColor: ins.color + "30" },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.insightIcon,
+                      { backgroundColor: ins.color + "1A" },
+                    ]}
+                  >
+                    <Feather name={ins.icon as never} size={15} color={ins.color} />
+                  </View>
+                  <View style={styles.insightText}>
+                    <Text style={styles.insightTitle}>{ins.title}</Text>
+                    <Text style={styles.insightDetail}>{ins.detail}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
         )}
 
@@ -254,7 +396,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Most Observed Nearby</Text>
-            <Pressable onPress={() => router.push("/(tabs)/species" as any)}>
+            <Pressable onPress={() => router.push("/(tabs)/species" as never)}>
               <Text style={styles.seeAll}>See all</Text>
             </Pressable>
           </View>
@@ -280,26 +422,56 @@ export default function HomeScreen() {
 
         {/* Quick actions */}
         <View style={styles.quickActions}>
+          {stats.atRisk > 0 && (
+            <Pressable
+              style={[
+                styles.actionCard,
+                { backgroundColor: "#1A0F0F", borderColor: "#7F1D1D" },
+              ]}
+              onPress={() => router.push("/(tabs)/species" as never)}
+            >
+              <Feather name="alert-triangle" size={20} color="#EF4444" />
+              <View style={styles.actionText}>
+                <Text style={styles.actionTitle}>
+                  {stats.atRisk} threatened {stats.atRisk === 1 ? "species" : "species"} nearby
+                </Text>
+                <Text style={styles.actionDesc}>
+                  Worth protecting in your area
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color="#475569" />
+            </Pressable>
+          )}
           <Pressable
-            style={[styles.actionCard, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}
-            onPress={() => router.push("/(tabs)/signals" as any)}
+            style={[
+              styles.actionCard,
+              { backgroundColor: "#0F1824", borderColor: "#1E293B" },
+            ]}
+            onPress={() => router.push("/(tabs)/signals" as never)}
           >
             <Feather name="activity" size={20} color="#22D3EE" />
             <View style={styles.actionText}>
               <Text style={styles.actionTitle}>Biodiversity Signals</Text>
-              <Text style={styles.actionDesc}>Changes in local species patterns</Text>
+              <Text style={styles.actionDesc}>
+                Changes in local species patterns
+              </Text>
             </View>
             <Feather name="chevron-right" size={16} color="#475569" />
           </Pressable>
 
           <Pressable
-            style={[styles.actionCard, { backgroundColor: "#0F1824", borderColor: "#1E293B" }]}
-            onPress={() => router.push("/(tabs)/reports" as any)}
+            style={[
+              styles.actionCard,
+              { backgroundColor: "#0F1824", borderColor: "#1E293B" },
+            ]}
+            onPress={() => router.push("/(tabs)/reports" as never)}
           >
             <Feather name="file-text" size={20} color="#FBBF24" />
             <View style={styles.actionText}>
               <Text style={styles.actionTitle}>Generate Report</Text>
-              <Text style={styles.actionDesc}>Create a civic biodiversity report</Text>
+              <Text style={styles.actionDesc}>
+                Create a civic biodiversity report
+              </Text>
             </View>
             <Feather name="chevron-right" size={16} color="#475569" />
           </Pressable>
@@ -308,9 +480,16 @@ export default function HomeScreen() {
         {/* Data credit */}
         <View style={styles.credit}>
           <Feather name="database" size={11} color="#334155" />
-          <Text style={styles.creditText}>Powered by iNaturalist community observations</Text>
+          <Text style={styles.creditText}>
+            Powered by iNaturalist community observations
+          </Text>
         </View>
       </ScrollView>
+
+      <SpeciesBottomSheet
+        selection={selection}
+        onClose={() => setSelection(null)}
+      />
     </View>
   );
 }
@@ -431,53 +610,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     color: "#94A3B8",
   },
-  globeOuter: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    borderWidth: 1,
-  },
-  globeMiddle: {
-    position: "absolute",
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 1,
-  },
-  globe: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#0F2027",
-    borderWidth: 1,
-    borderColor: "#22C55E30",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  locationDot: {
-    position: "absolute",
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#4ADE80",
-    bottom: 28,
-    right: 30,
-    shadowColor: "#4ADE80",
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  orbDot: {
-    position: "absolute",
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  orbDot1: { top: 14, right: 56 },
-  orbDot2: { bottom: 22, right: 40 },
-  orbDot3: { bottom: 30, left: 44 },
-  orbDot4: { top: 40, left: 30 },
   statsRow: {
     flexDirection: "row",
     gap: 10,
@@ -501,11 +633,42 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
+    marginBottom: 12,
   },
   seeAll: {
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
     color: "#4ADE80",
+  },
+  insightsList: { gap: 8 },
+  insightCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: "rgba(15, 24, 36, 0.85)",
+  },
+  insightIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  insightText: { flex: 1, gap: 2 },
+  insightTitle: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#F8FAFC",
+    letterSpacing: -0.1,
+  },
+  insightDetail: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: "#94A3B8",
+    lineHeight: 16,
   },
   emptyState: {
     borderRadius: 16,
