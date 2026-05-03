@@ -1,10 +1,12 @@
 {
   "cli": {
     "version": ">= 12.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "local",
+    "packageManager": "pnpm"
   },
   "build": {
     "development": {
+      "projectRoot": "artifacts/mobile",
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
@@ -12,17 +14,15 @@
       "android": { "buildType": "apk" }
     },
     "preview": {
+      "projectRoot": "artifacts/mobile",
       "distribution": "internal",
       "channel": "preview",
       "android": { "buildType": "apk" }
     },
     "production": {
+      "projectRoot": "artifacts/mobile",
       "channel": "production",
-      "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "$EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY",
-        "EXPO_PUBLIC_DOMAIN": "$EXPO_PUBLIC_DOMAIN"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {

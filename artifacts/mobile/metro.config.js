@@ -6,10 +6,13 @@ const workspaceRoot = path.resolve(projectRoot, "../..");
 
 const config = getDefaultConfig(projectRoot);
 
-// Watch the entire workspace root so Metro picks up changes in shared
-// libs (e.g. lib/api-client-react) during development. EAS Build also
-// needs this to resolve the workspace:* dependency at bundle time.
-config.watchFolders = [workspaceRoot];
+// Watch the entire workspace root and the shared lib used by this app.
+// EAS Build needs this so Metro can resolve the @workspace/api-client-react
+// workspace:* dependency when bundling.
+config.watchFolders = [
+  workspaceRoot,
+  path.resolve(workspaceRoot, "lib/api-client-react"),
+];
 
 // Make Metro resolve node_modules from both the app dir and the
 // workspace root (where pnpm hoists shared packages).
