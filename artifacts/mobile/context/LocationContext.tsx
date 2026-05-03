@@ -19,6 +19,8 @@ interface LocationState {
   hasOnboarded: boolean;
   permissionGranted: boolean;
   loading: boolean;
+  displayName: string | null;
+  localAvatarUri: string | null;
 }
 
 interface LocationContextType extends LocationState {
@@ -26,6 +28,8 @@ interface LocationContextType extends LocationState {
   setRadius: (r: Radius) => void;
   completeOnboarding: () => void;
   resetOnboarding: () => void;
+  setDisplayName: (name: string) => Promise<void>;
+  setLocalAvatarUri: (uri: string | null) => Promise<void>;
 }
 
 const LocationContext = createContext<LocationContextType | null>(null);
@@ -36,6 +40,8 @@ const STORAGE_KEYS = {
   lat: "@lifeweb:lat",
   lng: "@lifeweb:lng",
   city: "@lifeweb:city",
+  displayName: "@lifeweb:displayName",
+  avatarUri: "@lifeweb:avatarUri",
 };
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
@@ -49,6 +55,8 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     hasOnboarded: false,
     permissionGranted: false,
     loading: true,
+    displayName: null,
+    localAvatarUri: null,
   });
 
   useEffect(() => {
@@ -57,13 +65,16 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
 
   async function loadStoredState() {
     try {
-      const [onboarded, radius, lat, lng, city] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.onboarded),
-        AsyncStorage.getItem(STORAGE_KEYS.radius),
-        AsyncStorage.getItem(STORAGE_KEYS.lat),
-        AsyncStorage.getItem(STORAGE_KEYS.lng),
-        AsyncStorage.getItem(STORAGE_KEYS.city),
-      ]);
+      const [onboarded, radius, lat, lng, city, displayName, avatarUri] =
+        await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEYS.onboarded),
+          AsyncStorage.getItem(STORAGE_KEYS.radius),
+          AsyncStorage.getItem(STORAGE_KEYS.lat),
+          AsyncStorage.getItem(STORAGE_KEYS.lng),
+          AsyncStorage.getItem(STORAGE_KEYS.city),
+          AsyncStorage.getItem(STORAGE_KEYS.displayName),
+          AsyncStorage.getItem(STORAGE_KEYS.avatarUri),
+        ]);
       setState((prev) => ({
         ...prev,
         hasOnboarded: onboarded === "true",
@@ -71,6 +82,8 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
         lat: lat ? parseFloat(lat) : prev.lat,
         lng: lng ? parseFloat(lng) : prev.lng,
         cityName: city ?? prev.cityName,
+        displayName: displayName ?? null,
+        localAvatarUri: avatarUri ?? null,
         loading: false,
       }));
     } catch {
@@ -168,12 +181,41 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       hasOnboarded: false,
       permissionGranted: false,
       loading: false,
+      displayName: null,
+      localAvatarUri: null,
     });
+  }, []);
+
+  const setDisplayName = useCallback(async (name: string) => {
+    const trimmed = name.trim();
+    if (trimmed) {
+      await AsyncStorage.setItem(STORAGE_KEYS.displayName, trimmed);
+    } else {
+      await AsyncStorage.removeItem(STORAGE_KEYS.displayName);
+    }
+    setState((prev) => ({ ...prev, displayName: trimmed || null }));
+  }, []);
+
+  const setLocalAvatarUri = useCallback(async (uri: string | null) => {
+    if (uri) {
+      await AsyncStorage.setItem(STORAGE_KEYS.avatarUri, uri);
+    } else {
+      await AsyncStorage.removeItem(STORAGE_KEYS.avatarUri);
+    }
+    setState((prev) => ({ ...prev, localAvatarUri: uri }));
   }, []);
 
   return (
     <LocationContext.Provider
-      value={{ ...state, requestLocation, setRadius, completeOnboarding, resetOnboarding }}
+      value={{
+        ...state,
+        requestLocation,
+        setRadius,
+        completeOnboarding,
+        resetOnboarding,
+        setDisplayName,
+        setLocalAvatarUri,
+      }}
     >
       {children}
     </LocationContext.Provider>

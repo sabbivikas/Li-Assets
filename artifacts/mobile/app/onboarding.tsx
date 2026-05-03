@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -67,7 +68,7 @@ const ICONIC_FEATHER_ICON: Record<string, keyof typeof Feather.glyphMap> = {
 const ONBOARDING_COMPLETED_KEY = "onboardingCompleted";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
-const NUM_SCREENS = 6;
+const NUM_SCREENS = 7;
 
 function lightTap() {
   if (Platform.OS !== "web") {
@@ -1272,11 +1273,128 @@ function Dot({ index, scrollX }: { index: number; scrollX: SharedValue<number> }
   return <Animated.View style={[styles.dot, style]} />;
 }
 
+function NameInputHero({
+  value,
+  onChange,
+  active,
+}: {
+  value: string;
+  onChange: (s: string) => void;
+  active: boolean;
+}) {
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    if (active) {
+      glow.value = withRepeat(
+        withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.quad) }),
+        -1,
+        true,
+      );
+    } else {
+      glow.value = 0;
+    }
+  }, [active, glow]);
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(glow.value, [0, 1], [0.35, 0.8]),
+    transform: [{ scale: interpolate(glow.value, [0, 1], [0.96, 1.04]) }],
+  }));
+  return (
+    <View style={{ width: "100%", alignItems: "center", gap: 28 }}>
+      <View
+        style={{
+          width: 140,
+          height: 140,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Animated.View
+          style={[
+            {
+              position: "absolute",
+              width: 140,
+              height: 140,
+              borderRadius: 70,
+              backgroundColor: "#22C55E40",
+            },
+            glowStyle,
+          ]}
+        />
+        <View
+          style={{
+            width: 96,
+            height: 96,
+            borderRadius: 48,
+            backgroundColor: "#0F1824",
+            borderWidth: 2,
+            borderColor: "#4ADE80",
+            alignItems: "center",
+            justifyContent: "center",
+            shadowColor: "#4ADE80",
+            shadowOpacity: 0.7,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 12,
+          }}
+        >
+          <Feather name="edit-3" size={36} color="#4ADE80" />
+        </View>
+      </View>
+      <View style={nameStyles.inputCard}>
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder="Your name"
+          placeholderTextColor="#64748B"
+          autoCapitalize="words"
+          autoCorrect={false}
+          returnKeyType="done"
+          maxLength={40}
+          style={nameStyles.input}
+          accessibilityLabel="Your name"
+        />
+      </View>
+    </View>
+  );
+}
+
+const nameStyles = StyleSheet.create({
+  inputCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 16,
+    backgroundColor: "#0F1824",
+    borderWidth: 1.5,
+    borderColor: "#22D3EE60",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    shadowColor: "#22D3EE",
+    shadowOpacity: 0.4,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  input: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 20,
+    color: "#FFFFFF",
+    textAlign: "center",
+    paddingVertical: 4,
+  },
+});
+
 export default function OnboardingScreenRoot() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { requestLocation, completeOnboarding, lat, lng, permissionGranted } =
-    useLocation();
+  const {
+    requestLocation,
+    completeOnboarding,
+    lat,
+    lng,
+    permissionGranted,
+    setDisplayName,
+    displayName,
+  } = useLocation();
+  const [nameDraft, setNameDraft] = useState<string>(displayName ?? "");
 
   // Pre-fetch a small sample of nearby species so screen 3 can replace
   // the generic bee/bird/flower placeholders with real local taxa once
@@ -1335,10 +1453,19 @@ export default function OnboardingScreenRoot() {
       scrollX.value = x;
       const idx = Math.round(x / SCREEN_W);
       if (idx !== activeIndex && idx >= 0 && idx < NUM_SCREENS) {
+        // If the user swipes off the name screen (rather than tapping
+        // Continue), persist whatever non-empty draft they typed so the
+        // name isn't lost if the app backgrounds before onboarding ends.
+        if (activeIndex === 0 && idx > 0) {
+          const trimmed = nameDraft.trim();
+          if (trimmed && trimmed !== displayName) {
+            void setDisplayName(trimmed);
+          }
+        }
         setActiveIndex(idx);
       }
     },
-    [activeIndex, scrollX],
+    [activeIndex, scrollX, nameDraft, displayName, setDisplayName],
   );
 
   const goTo = useCallback((i: number) => {
@@ -1355,12 +1482,18 @@ export default function OnboardingScreenRoot() {
 
   const handleContinue = useCallback(async () => {
     lightTap();
+    if (activeIndex === 0) {
+      // Persist name before leaving the name screen.
+      const trimmed = nameDraft.trim();
+      if (!trimmed) return;
+      await setDisplayName(trimmed);
+    }
     if (activeIndex < NUM_SCREENS - 1) {
       goTo(activeIndex + 1);
     } else {
       await finishOnboarding();
     }
-  }, [activeIndex, finishOnboarding, goTo]);
+  }, [activeIndex, finishOnboarding, goTo, nameDraft, setDisplayName]);
 
   const handleSkip = useCallback(async () => {
     lightTap();
@@ -1398,6 +1531,8 @@ export default function OnboardingScreenRoot() {
       case 0:
         return "Continue";
       case 1:
+        return "Continue";
+      case 2:
         return locationDone === "granted"
           ? "Location found — continue"
           : locationDone === "mock"
@@ -1405,20 +1540,22 @@ export default function OnboardingScreenRoot() {
             : locationLoading
               ? "Finding your location…"
               : "Show my local ecosystem";
-      case 2:
-        return "Continue";
       case 3:
         return "Continue";
       case 4:
         return "Continue";
       case 5:
+        return "Continue";
+      case 6:
         return "Explore my area";
       default:
         return "Continue";
     }
   })();
 
-  const onPrimaryPress = activeIndex === 1 ? handleLocateRequest : handleContinue;
+  const onPrimaryPress = activeIndex === 2 ? handleLocateRequest : handleContinue;
+  const ctaDisabled =
+    locationLoading || (activeIndex === 0 && !nameDraft.trim());
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -1426,7 +1563,7 @@ export default function OnboardingScreenRoot() {
         colors={["#04080F", "#080C14", "#0A1628"]}
         style={StyleSheet.absoluteFill}
       />
-      {activeIndex >= 1 && activeIndex < NUM_SCREENS - 1 ? (
+      {activeIndex >= 2 && activeIndex < NUM_SCREENS - 1 ? (
         <Pressable
           onPress={handleSkip}
           accessibilityLabel="Skip onboarding"
@@ -1453,18 +1590,33 @@ export default function OnboardingScreenRoot() {
           index={0}
           active={activeIndex === 0}
           scrollX={scrollX}
-          hero={<AnimatedEarth size={Math.min(SCREEN_W * 0.72, 280)} />}
-          title="Nature around you is changing."
-          subtitle="A quiet shift is happening in your neighborhood — and most of us never notice."
+          hero={
+            <NameInputHero
+              value={nameDraft}
+              onChange={setNameDraft}
+              active={activeIndex === 0}
+            />
+          }
+          title="Welcome to Life Web."
+          subtitle="What should we call you, naturalist?"
         />
 
         <OnboardingScreen
           index={1}
           active={activeIndex === 1}
           scrollX={scrollX}
+          hero={<AnimatedEarth size={Math.min(SCREEN_W * 0.72, 280)} />}
+          title="Nature around you is changing."
+          subtitle="A quiet shift is happening in your neighborhood — and most of us never notice."
+        />
+
+        <OnboardingScreen
+          index={2}
+          active={activeIndex === 2}
+          scrollX={scrollX}
           hero={
             <AnimatedLocationPin
-              active={activeIndex === 1}
+              active={activeIndex === 2}
               size={Math.min(SCREEN_W * 0.72, 280)}
               lat={locationDone === "granted" ? lat : null}
               lng={locationDone === "granted" ? lng : null}
@@ -1479,8 +1631,8 @@ export default function OnboardingScreenRoot() {
         />
 
         <OnboardingScreen
-          index={2}
-          active={activeIndex === 2}
+          index={3}
+          active={activeIndex === 3}
           scrollX={scrollX}
           hero={
             <View
@@ -1490,7 +1642,7 @@ export default function OnboardingScreenRoot() {
               }}
             >
               <ConnectorLines
-                active={activeIndex === 2}
+                active={activeIndex === 3}
                 nodes={screen3Nodes}
                 size={Math.min(SCREEN_W * 0.85, 320)}
               />
@@ -1518,7 +1670,7 @@ export default function OnboardingScreenRoot() {
               {screen3Nodes.map((n, i) => (
                 <OnboardingSpeciesCard
                   key={i}
-                  active={activeIndex === 2}
+                  active={activeIndex === 3}
                   node={n}
                   containerSize={Math.min(SCREEN_W * 0.85, 320)}
                 />
@@ -1530,28 +1682,28 @@ export default function OnboardingScreenRoot() {
         />
 
         <OnboardingScreen
-          index={3}
-          active={activeIndex === 3}
-          scrollX={scrollX}
-          hero={<EcosystemChain active={activeIndex === 3} />}
-          title="Lose one. Lose many."
-          subtitle="When pollinators vanish, flowers fade, fruit drops, birds leave. One loss ripples outward."
-        />
-
-        <OnboardingScreen
           index={4}
           active={activeIndex === 4}
           scrollX={scrollX}
-          hero={<DashboardPreview active={activeIndex === 4} />}
-          title="See it. Track it. Act on it."
-          subtitle="Species → signals → impact → action. Life Web turns nature into something you can read."
+          hero={<EcosystemChain active={activeIndex === 4} />}
+          title="Lose one. Lose many."
+          subtitle="When pollinators vanish, flowers fade, fruit drops, birds leave. One loss ripples outward."
         />
 
         <OnboardingScreen
           index={5}
           active={activeIndex === 5}
           scrollX={scrollX}
-          hero={<ReportSharePreview active={activeIndex === 5} />}
+          hero={<DashboardPreview active={activeIndex === 5} />}
+          title="See it. Track it. Act on it."
+          subtitle="Species → signals → impact → action. Life Web turns nature into something you can read."
+        />
+
+        <OnboardingScreen
+          index={6}
+          active={activeIndex === 6}
+          scrollX={scrollX}
+          hero={<ReportSharePreview active={activeIndex === 6} />}
           title="Your voice for the wild."
           subtitle="One tap turns your local ecosystem into a report you can share with leaders, media, and neighbors."
         />
@@ -1564,11 +1716,11 @@ export default function OnboardingScreenRoot() {
             onPress={onPrimaryPress}
             accessibilityLabel={ctaCopy}
             accessibilityRole="button"
-            disabled={locationLoading}
+            disabled={ctaDisabled}
             style={({ pressed }) => [
               styles.cta,
               {
-                opacity: pressed ? 0.85 : 1,
+                opacity: ctaDisabled ? 0.5 : pressed ? 0.85 : 1,
                 transform: [{ scale: pressed ? 0.97 : 1 }],
               },
             ]}
