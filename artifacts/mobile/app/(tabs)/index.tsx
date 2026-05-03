@@ -51,11 +51,7 @@ const GROUP_COLORS: Record<string, string> = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// In-memory caches keyed across renders so role lookups and photo URL
-// resolution don't redo work for the same taxa as the user moves around.
 const roleCache = new Map<string, ReturnType<typeof getEcosystemRoles>>();
-const photoCache = new Map<number, { square?: string; medium?: string }>();
-
 function cachedRoles(iconic?: string, name?: string) {
   const key = `${iconic || ""}|${name || ""}`;
   let r = roleCache.get(key);
@@ -64,16 +60,6 @@ function cachedRoles(iconic?: string, name?: string) {
     roleCache.set(key, r);
   }
   return r;
-}
-
-function cachedPhotos(taxon?: { id?: number; default_photo?: { square_url?: string; medium_url?: string } }) {
-  if (!taxon?.id) return { square: taxon?.default_photo?.square_url, medium: taxon?.default_photo?.medium_url };
-  let p = photoCache.get(taxon.id);
-  if (!p) {
-    p = { square: taxon.default_photo?.square_url, medium: taxon.default_photo?.medium_url };
-    photoCache.set(taxon.id, p);
-  }
-  return p;
 }
 
 export default function HomeScreen() {
@@ -113,21 +99,19 @@ export default function HomeScreen() {
     enabled: permissionGranted && !!lat && !!lng,
   });
 
-  // Build importance-weighted map pins from the observations dataset.
-  // Importance = base + role boost + frequency boost (same species seen often).
-  const mapPins: (SpeciesPin & { observedOn?: string; conservationStatus?: string })[] = useMemo(() => {
+  const mapPins: (SpeciesPin & {
+    observedOn?: string;
+    conservationStatus?: string;
+  })[] = useMemo(() => {
     if (!observations) return [];
 
-    // Count how often each species appears in the observations window —
-    // this is the per-taxon "recent nearby count" we surface in the sheet.
     const speciesCounts: Record<number, number> = {};
     observations.forEach((o) => {
       const id = o.taxon?.id;
-      if (typeof id === "number") {
-        speciesCounts[id] = (speciesCounts[id] || 0) + 1;
-      }
+      if (typeof id === "number") speciesCounts[id] = (speciesCounts[id] || 0) + 1;
     });
     const maxFreq = Math.max(1, ...Object.values(speciesCounts));
+    const KEY_ROLES = new Set(["pollinator", "predator", "indicator", "primary_producer"]);
 
     const pins = observations
       .map((o) => {
@@ -135,48 +119,36 @@ export default function HomeScreen() {
         const [obsLat, obsLng] = o.location.split(",").map(Number);
         if (!isFinite(obsLat) || !isFinite(obsLng)) return null;
         const taxon = o.taxon;
-        const group = getIconicGroup(taxon?.iconic_taxon_name);
-        const roles = cachedRoles(
+        const square = taxon?.default_photo?.square_url;
+        const medium = taxon?.default_photo?.medium_url;
+        // Photo-only markers — we never render generic dots on the home map.
+        if (!square && !medium) return null;
+
+        const primaryRole = cachedRoles(
           taxon?.iconic_taxon_name,
           taxon?.preferred_common_name,
-        );
-        const primaryRole = roles[0];
-        const keyRoles = new Set([
-          "pollinator",
-          "predator",
-          "indicator",
-          "primary_producer",
-        ]);
-        const roleBoost = keyRoles.has(primaryRole)
+        )[0];
+        const roleBoost = KEY_ROLES.has(primaryRole)
           ? 1
           : primaryRole === "decomposer" || primaryRole === "seed_disperser"
             ? 0.6
             : 0.2;
-
         const freq = (taxon?.id && speciesCounts[taxon.id]) || 1;
-        const freqBoost = freq / maxFreq;
-        const importance = Math.min(
-          1,
-          0.25 + roleBoost * 0.45 + freqBoost * 0.3,
-        );
-
-        const ringColor = getRoleColor(primaryRole);
-        const photos = cachedPhotos(taxon);
+        const importance = Math.min(1, 0.25 + roleBoost * 0.45 + (freq / maxFreq) * 0.3);
 
         return {
           id: o.id,
           taxonId: taxon?.id,
-          name:
-            taxon?.preferred_common_name || taxon?.name || "Observation",
+          name: taxon?.preferred_common_name || taxon?.name || "Observation",
           scientificName: taxon?.name,
           lat: obsLat,
           lng: obsLng,
-          color: ringColor,
-          photoUrl: photos.square || photos.medium,
-          photoMediumUrl: photos.medium || photos.square,
+          color: getRoleColor(primaryRole),
+          photoUrl: square || medium,
+          photoMediumUrl: medium || square,
           importance,
           role: getRoleLabel(primaryRole),
-          group,
+          group: getIconicGroup(taxon?.iconic_taxon_name),
           recentNearbyCount: freq,
           observedOn: o.observed_on,
           conservationStatus: taxon?.conservation_status?.status?.toUpperCase(),
@@ -184,17 +156,12 @@ export default function HomeScreen() {
       })
       .filter((p): p is NonNullable<typeof p> => p !== null);
 
-    // Sort by importance desc and cap at 25 visible markers — this is the
-    // "rendered map dataset" all stats are derived from.
     return pins
       .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
       .slice(0, 25);
   }, [observations]);
 
-  const insights = useMemo(
-    () => generateInsights(observations, species),
-    [observations, species],
-  );
+  const insights = useMemo(() => generateInsights(mapPins), [mapPins]);
 
   // Stats are derived from the EXACT rendered map dataset (capped 25 pins)
   // so map and cards tell the same story.

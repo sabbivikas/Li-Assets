@@ -1,10 +1,3 @@
-import { getEcosystemRoles } from "./ecologyModel";
-import {
-  getIconicGroup,
-  type ObservationResult,
-  type SpeciesCount,
-} from "./iNaturalist";
-
 export interface Insight {
   id: string;
   icon: string;
@@ -13,57 +6,54 @@ export interface Insight {
   detail: string;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function daysAgo(dateStr?: string): number | null {
-  if (!dateStr) return null;
-  const t = Date.parse(dateStr);
-  if (!isFinite(t)) return null;
-  return Math.floor((Date.now() - t) / DAY_MS);
+export interface InsightPin {
+  taxonId?: number;
+  name: string;
+  group?: string;
+  role?: string;
+  observedOn?: string;
+  conservationStatus?: string;
 }
 
-/**
- * Generate up to 4 plain-language insights derived from the same
- * observations dataset that powers the map and the stats row.
- */
-export function generateInsights(
-  observations: ObservationResult[] = [],
-  species: SpeciesCount[] = [],
-): Insight[] {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const GROUP_ICON: Record<string, string> = {
+  Birds: "feather",
+  Plants: "leaf",
+  Insects: "sun",
+};
+const GROUP_COLOR: Record<string, string> = {
+  Birds: "#22D3EE",
+  Plants: "#4ADE80",
+  Insects: "#FBBF24",
+};
+
+export function generateInsights(pins: InsightPin[] = []): Insight[] {
+  if (pins.length === 0) return [];
   const insights: Insight[] = [];
+  const now = Date.now();
 
-  if (observations.length === 0 && species.length === 0) return insights;
-
-  // 1. Activity in the last 7 days vs the full 30-day window
-  const last7 = observations.filter((o) => {
-    const d = daysAgo(o.observed_on);
-    return d !== null && d <= 7;
+  const last7 = pins.filter((p) => {
+    if (!p.observedOn) return false;
+    const t = Date.parse(p.observedOn);
+    return isFinite(t) && now - t <= 7 * DAY_MS;
   }).length;
-  if (observations.length > 0) {
-    const expected = observations.length * (7 / 30);
-    let trend: "high" | "steady" | "quiet";
-    if (last7 >= expected * 1.25) trend = "high";
-    else if (last7 >= expected * 0.75) trend = "steady";
-    else trend = "quiet";
-    const trendLabel =
-      trend === "high"
-        ? "Picking up"
-        : trend === "steady"
-          ? "Steady activity"
-          : "Quiet week";
-    insights.push({
-      id: "activity",
-      icon: trend === "high" ? "trending-up" : trend === "quiet" ? "moon" : "activity",
-      color: trend === "high" ? "#4ADE80" : trend === "quiet" ? "#94A3B8" : "#22D3EE",
-      title: `${trendLabel} — ${last7} sightings in the last 7 days`,
-      detail: `Compared to ~${Math.round(expected)} expected for a typical week here.`,
-    });
-  }
+  const expected = pins.length * (7 / 30);
+  const trend =
+    last7 >= expected * 1.25 ? "high" : last7 >= expected * 0.75 ? "steady" : "quiet";
+  insights.push({
+    id: "activity",
+    icon: trend === "high" ? "trending-up" : trend === "quiet" ? "moon" : "activity",
+    color: trend === "high" ? "#4ADE80" : trend === "quiet" ? "#94A3B8" : "#22D3EE",
+    title:
+      (trend === "high" ? "Picking up" : trend === "steady" ? "Steady activity" : "Quiet week") +
+      ` — ${last7} sightings in the last 7 days`,
+    detail: `Compared to ~${Math.round(expected)} expected for a typical week here.`,
+  });
 
-  // 2. Most active group right now
   const groupCounts: Record<string, number> = {};
-  observations.forEach((o) => {
-    const g = getIconicGroup(o.taxon?.iconic_taxon_name);
+  pins.forEach((p) => {
+    const g = p.group || "Other";
     groupCounts[g] = (groupCounts[g] || 0) + 1;
   });
   const topGroup = Object.entries(groupCounts).sort((a, b) => b[1] - a[1])[0];
@@ -71,76 +61,36 @@ export function generateInsights(
     const [name, count] = topGroup;
     insights.push({
       id: "active-group",
-      icon:
-        name === "Birds"
-          ? "feather"
-          : name === "Plants"
-            ? "leaf"
-            : name === "Insects"
-              ? "sun"
-              : "globe",
-      color:
-        name === "Birds"
-          ? "#22D3EE"
-          : name === "Plants"
-            ? "#4ADE80"
-            : name === "Insects"
-              ? "#FBBF24"
-              : "#A78BFA",
+      icon: GROUP_ICON[name] || "globe",
+      color: GROUP_COLOR[name] || "#A78BFA",
       title: `${name} dominate recent activity`,
-      detail: `${count} of ${observations.length} recent sightings nearby.`,
+      detail: `${count} of ${pins.length} markers on the map.`,
     });
   }
 
-  // 3. Pollinator presence
-  const pollinatorObs = observations.filter((o) => {
-    const roles = getEcosystemRoles(
-      o.taxon?.iconic_taxon_name,
-      o.taxon?.preferred_common_name,
-    );
-    return roles.includes("pollinator");
-  });
-  if (pollinatorObs.length > 0) {
+  const pollinators = pins.filter((p) => /pollinator/i.test(p.role || ""));
+  if (pollinators.length > 0) {
     insights.push({
       id: "pollinator",
       icon: "sun",
       color: "#FBBF24",
-      title: `Pollinators are active here`,
-      detail: `${pollinatorObs.length} pollinator ${pollinatorObs.length === 1 ? "sighting" : "sightings"} in the last 30 days.`,
+      title: "Pollinators are active here",
+      detail: `${pollinators.length} pollinator ${pollinators.length === 1 ? "marker" : "markers"} on the map.`,
     });
   }
 
-  // 4. At-risk species nearby — derived from observation taxa first so the
-  // map and the cards tell the same story; fall back to the species list if
-  // observations don't carry conservation_status.
-  const atRiskFromObs = new Map<number, string>();
-  observations.forEach((o) => {
-    const t = o.taxon;
-    const cs = t?.conservation_status?.status?.toUpperCase();
-    if (t?.id && cs && ["CR", "EN", "VU", "NT"].includes(cs)) {
-      atRiskFromObs.set(t.id, t.preferred_common_name || t.name);
-    }
-  });
-  let atRiskCount = atRiskFromObs.size;
-  let firstAtRisk = atRiskFromObs.values().next().value;
-  if (atRiskCount === 0) {
-    const fallback = species.filter((s) => {
-      const cs = s.taxon.conservation_status?.status?.toUpperCase();
-      return cs && ["CR", "EN", "VU", "NT"].includes(cs);
-    });
-    atRiskCount = fallback.length;
-    if (fallback[0]) {
-      firstAtRisk =
-        fallback[0].taxon.preferred_common_name || fallback[0].taxon.name;
-    }
-  }
-  if (atRiskCount > 0 && firstAtRisk) {
+  const atRisk = pins.filter(
+    (p) => p.conservationStatus && ["CR", "EN", "VU", "NT"].includes(p.conservationStatus),
+  );
+  if (atRisk.length > 0) {
+    const unique = new Map(atRisk.map((p) => [p.taxonId ?? p.name, p.name]));
+    const first = unique.values().next().value;
     insights.push({
       id: "at-risk",
       icon: "alert-triangle",
       color: "#EF4444",
-      title: `${atRiskCount} at-risk ${atRiskCount === 1 ? "species" : "species"} nearby`,
-      detail: `Including ${firstAtRisk}. Their presence makes this area worth protecting.`,
+      title: `${unique.size} at-risk ${unique.size === 1 ? "species" : "species"} on the map`,
+      detail: `Including ${first}. Their presence makes this area worth protecting.`,
     });
   }
 

@@ -201,17 +201,6 @@ function buildLeafletHtml(
     z-index: 999 !important;
   }
 
-  /* Fallback dot pin when no photo is available */
-  .dot-pin {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: var(--ring, #4ADE80);
-    border: 2px solid rgba(255,255,255,0.9);
-    box-shadow: 0 0 10px var(--ring, #4ADE80), 0 2px 6px rgba(0,0,0,0.5);
-    cursor: pointer;
-  }
-
   /* Photo-stack cluster bubble */
   .photo-cluster {
     position: relative;
@@ -326,6 +315,7 @@ function buildLeafletHtml(
   function postPinTap(p) {
     var payload = {
       type: 'pin-tap',
+      source: 'lifeweb-map',
       pin: {
         id: p.id,
         taxonId: p.taxonId,
@@ -339,13 +329,11 @@ function buildLeafletHtml(
         recentNearbyCount: p.recentNearbyCount,
       },
     };
-    try {
-      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-        window.ReactNativeWebView.postMessage(JSON.stringify(payload));
-      } else if (window.parent && window.parent !== window) {
-        window.parent.postMessage(payload, '*');
-      }
-    } catch (e) {}
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+    } else if (window.parent && window.parent !== window) {
+      window.parent.postMessage(payload, '*');
+    }
   }
 
   // Track currently selected pin element so we can deselect later
@@ -357,13 +345,13 @@ function buildLeafletHtml(
     selectedEl = el || null;
     if (selectedEl) selectedEl.classList.add('is-selected');
   }
-  // Expose so the host can clear selection when sheet closes
   window.__deselectPin = function() { setSelected(null); };
   window.addEventListener('message', function(e) {
-    if (e && e.data && e.data.type === 'deselect') setSelected(null);
+    if (e && e.data && e.data.type === 'deselect' && e.source === window.parent) {
+      setSelected(null);
+    }
   });
 
-  // Cluster group — photo-stack icons
   var cluster = L.markerClusterGroup({
     showCoverageOnHover: false,
     maxClusterRadius: 52,
@@ -390,56 +378,34 @@ function buildLeafletHtml(
     },
   });
 
-  // Build markers (cap at 30 for performance)
-  var capped = pins.slice(0, 30);
-  capped.forEach(function(p, idx) {
+  pins.slice(0, 30).forEach(function(p, idx) {
+    var url = safeUrl(p.photoUrl);
+    if (!url) return;
     var ring = p.color || '#FBBF24';
     var imp = Math.max(0, Math.min(1, typeof p.importance === 'number' ? p.importance : 0.4));
-    var size = Math.round(30 + imp * 22); // 30..52px
-    var glow = Math.round(10 + imp * 14); // 10..24px
-    var url = safeUrl(p.photoUrl);
-    var inner = url
-      ? '<div class="photo-pin" style="--ring:' + ring + ';--glow:' + glow + 'px;background-image:url(&quot;' + url + '&quot;);"></div>'
-      : '<div class="dot-pin" style="--ring:' + ring + ';"></div>';
-    // Random-ish but deterministic float delay for variety
+    var size = Math.round(30 + imp * 22);
+    var glow = Math.round(10 + imp * 14);
     var delay = ((idx * 137) % 1000) / 1000;
     var dur = 3.6 + ((idx * 53) % 100) / 80;
     var html =
       '<div class="pin-wrap" style="--float-delay:' + delay.toFixed(2) + 's;--float-dur:' + dur.toFixed(2) + 's;width:' + size + 'px;height:' + size + 'px;">' +
-        inner +
+        '<div class="photo-pin" style="--ring:' + ring + ';--glow:' + glow + 'px;background-image:url(&quot;' + url + '&quot;);"></div>' +
       '</div>';
-    var icon = L.divIcon({
-      className: 'species-pin-wrap',
-      html: html,
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-    });
     var marker = L.marker([p.lat, p.lng], {
-      icon: icon,
-      _photoUrl: url || undefined,
-      _pinData: p,
+      icon: L.divIcon({
+        className: 'species-pin-wrap',
+        html: html,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      }),
+      _photoUrl: url,
       bubblingMouseEvents: false,
     });
-    function handlePinTap(ev) {
-      if (ev) {
-        if (ev.stopPropagation) ev.stopPropagation();
-        if (ev.preventDefault) ev.preventDefault();
-      }
+    marker.on('click', function() {
       var el = marker.getElement();
-      var inner = el ? el.querySelector('.photo-pin, .dot-pin') : null;
+      var inner = el ? el.querySelector('.photo-pin') : null;
       if (inner) setSelected(inner);
       postPinTap(p);
-    }
-    marker.on('click', handlePinTap);
-    // Fallback DOM-level binding so clicks on inner photo divs always work,
-    // even under headless test runners or when Leaflet's event delegation
-    // is intercepted by sibling pseudo-elements.
-    marker.on('add', function() {
-      var el = marker.getElement();
-      if (!el || el.__pinBound) return;
-      el.__pinBound = true;
-      el.style.cursor = 'pointer';
-      el.addEventListener('click', handlePinTap, true);
     });
     cluster.addLayer(marker);
   });
@@ -465,8 +431,6 @@ export function LocationMap({
   onPinSelect,
   selectedPinId,
 }: Props) {
-  // Defer pin updates so rapid changes (location refetches, region pans)
-  // don't thrash the iframe — React batches into a single rebuild.
   const deferredPins = useDeferredValue(pins);
   const html = useMemo(
     () => buildLeafletHtml(lat, lng, radiusKm, deferredPins),
@@ -480,18 +444,16 @@ export function LocationMap({
     onPinSelectRef.current = onPinSelect;
   }, [onPinSelect]);
 
-  // Listen for pin-tap messages from the iframe (web).
-  // We rely on the message shape to filter rather than e.source identity —
-  // srcdoc iframes use an opaque origin, and React 19 strict mode can
-  // re-mount the iframe so the contentWindow ref is not always reliable.
   useEffect(() => {
     if (Platform.OS !== "web") return;
     function handler(e: MessageEvent) {
+      if (e.source !== iframeRef.current?.contentWindow) return;
       const data = e.data;
       if (
         !data ||
         typeof data !== "object" ||
         data.type !== "pin-tap" ||
+        data.source !== "lifeweb-map" ||
         !data.pin ||
         typeof data.pin.id !== "number"
       ) {
@@ -503,7 +465,6 @@ export function LocationMap({
     return () => window.removeEventListener("message", handler);
   }, []);
 
-  // Push deselect when selection is cleared from outside
   useEffect(() => {
     if (selectedPinId !== null && selectedPinId !== undefined) return;
     if (Platform.OS === "web") {
@@ -555,7 +516,6 @@ export function LocationMap({
               onPinSelectRef.current?.(data.pin);
             }
           } catch {
-            // ignore malformed messages
           }
         }}
       />

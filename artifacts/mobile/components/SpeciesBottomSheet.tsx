@@ -40,8 +40,6 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
   const translateY = useSharedValue(HIDDEN_Y);
   const opacity = useSharedValue(0);
   const startY = useSharedValue(0);
-  // Image upgrade: render the low-res photo first, then swap to medium once
-  // it loads so the open feels instantaneous but ends up crisp.
   const [hiResLoaded, setHiResLoaded] = useState(false);
 
   useEffect(() => {
@@ -63,8 +61,6 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
   }));
   const backdropStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
-  // Swipe down to dismiss. Triggers onClose if the user drags past 80px or
-  // releases with downward velocity > 600.
   const panGesture = Gesture.Pan()
     .onStart(() => {
       startY.value = translateY.value;
@@ -91,7 +87,6 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
     const taxonId = selection?.taxonId;
     onClose();
     if (taxonId) {
-      // Navigate after a tiny delay so the close animation can start
       setTimeout(() => router.push(`/impact/${taxonId}` as never), 80);
     }
   }
