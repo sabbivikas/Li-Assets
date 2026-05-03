@@ -256,22 +256,31 @@ function buildLeafletHtml(
     },
   });
 
+  // Conservatively encode any photo URL before injecting into HTML/CSS.
+  // Allows only http(s) URLs; fully encodes special characters.
+  function safeUrl(u) {
+    if (typeof u !== 'string') return '';
+    if (!/^https?:\\/\\//i.test(u)) return '';
+    return encodeURI(u).replace(/['"<>\\\\]/g, encodeURIComponent);
+  }
+
   pins.forEach((p) => {
     const ring = p.color || '#FBBF24';
     const safeName = escapeHtml(p.name);
-    const html = p.photoUrl
-      ? '<div class="photo-pin" style="--ring:' + ring + ';background-image:url(\\'' + p.photoUrl.replace(/'/g, "%27") + '\\');"></div>'
+    const url = safeUrl(p.photoUrl);
+    const html = url
+      ? '<div class="photo-pin" style="--ring:' + ring + ';background-image:url(&quot;' + url + '&quot;);"></div>'
       : '<div class="dot-pin" style="--ring:' + ring + ';"></div>';
-    const size = p.photoUrl ? 38 : 16;
+    const size = url ? 38 : 16;
     const icon = L.divIcon({
       className: 'species-pin-wrap',
       html,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     });
-    const popupHtml = p.photoUrl
+    const popupHtml = url
       ? '<div style="display:flex;gap:8px;align-items:center;">'
-        + '<img src="' + p.photoUrl.replace(/"/g, '%22') + '" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid #1E293B;" />'
+        + '<img src="' + url + '" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid #1E293B;" />'
         + '<b>' + safeName + '</b></div>'
       : '<b>' + safeName + '</b>';
     L.marker([p.lat, p.lng], { icon }).bindPopup(popupHtml).addTo(cluster);
