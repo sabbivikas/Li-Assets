@@ -795,7 +795,7 @@ function PreviewStep({ report }: { report: GeneratedReport }) {
       {/* Title + meta card */}
       <WobbleBox width={358} height={140} fill="white" seed={91} padding={14}>
         <View style={{ flex: 1, gap: 6 }}>
-          <Text style={styles.previewKicker}>~ Life Web Report ~</Text>
+          <Text style={styles.previewKicker}>~ Natura Report ~</Text>
           <Text style={styles.previewTitle} numberOfLines={3}>
             {report.title}
           </Text>

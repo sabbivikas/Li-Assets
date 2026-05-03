@@ -295,7 +295,7 @@ export default function ProfileScreen() {
                 style={styles.nameRow}
               >
                 <Text style={styles.name} numberOfLines={1}>
-                  {fullName ?? "Life Web member"}
+                  {fullName ?? "Natura member"}
                 </Text>
                 <Feather name="edit-2" size={14} color={PAINT.inkMute} />
               </Pressable>

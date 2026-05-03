@@ -490,7 +490,7 @@ export function generateReport(inputs: ReportInputs): GeneratedReport {
   sections.push("SOURCES");
   sections.push("• iNaturalist research-grade community observations");
   sections.push("• iNaturalist taxa metadata");
-  sections.push(`• Life Web app analysis (${fmtDate()})`);
+  sections.push(`• Natura app analysis (${fmtDate()})`);
   sections.push("");
 
   sections.push("DISCLAIMER");

@@ -47,7 +47,7 @@ function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (!domain) {
     throw new Error(
-      "EXPO_PUBLIC_DOMAIN is not set; cannot reach the Life Web API server."
+      "EXPO_PUBLIC_DOMAIN is not set; cannot reach the Natura API server."
     );
   }
   const stripped = domain.replace(/^https?:\/\//, "").replace(/\/$/, "");

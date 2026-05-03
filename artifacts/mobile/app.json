@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Life Web",
+    "name": "Natura",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -34,7 +34,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Life Web needs your location to find species observed near you."
+          "locationWhenInUsePermission": "Natura needs your location to find species observed near you."
         }
       ]
     ],

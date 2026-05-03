@@ -47,7 +47,7 @@ export const CATEGORY_META: Record<
     icon: "compass",
   },
   lifeweb: {
-    label: "Life Web",
+    label: "Web of life",
     tagline: "Understand ecosystem roles",
     color: PAINT.pink,
     icon: "share-2",

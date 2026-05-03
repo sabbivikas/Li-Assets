@@ -158,7 +158,7 @@ export default function SignInScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Life Web</Text>
+            <Text style={styles.title}>Natura</Text>
             <View style={styles.sparkleA}><Sparkle size={9} color={PAINT.sun} /></View>
             <View style={styles.sparkleB}><Sparkle size={7} color={PAINT.pink} /></View>
           </View>
@@ -209,7 +209,7 @@ export default function SignInScreen() {
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Text style={styles.legal}>
-            by continuing you agree to share your sign-in details with Life Web
+            by continuing you agree to share your sign-in details with Natura
           </Text>
         </View>
       </View>

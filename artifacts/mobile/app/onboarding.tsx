@@ -1597,7 +1597,7 @@ export default function OnboardingScreenRoot() {
               active={activeIndex === 0}
             />
           }
-          title="Welcome to Life Web."
+          title="Welcome to Natura."
           subtitle="What should we call you, naturalist?"
         />
 
@@ -1696,7 +1696,7 @@ export default function OnboardingScreenRoot() {
           scrollX={scrollX}
           hero={<DashboardPreview active={activeIndex === 5} />}
           title="See it. Track it. Act on it."
-          subtitle="Species → signals → impact → action. Life Web turns nature into something you can read."
+          subtitle="Species → signals → impact → action. Natura turns the wild into something you can read."
         />
 
         <OnboardingScreen

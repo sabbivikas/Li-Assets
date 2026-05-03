@@ -176,7 +176,7 @@ export default function CardDetailScreen() {
     if (!card) return;
     Haptics.selectionAsync();
     const title = card.commonName || card.taxonName;
-    const msg = `${title} — Level ${card.level}/5 on my Life Web. ${card.nearbyCount} nearby observations.`;
+    const msg = `${title} — Level ${card.level}/5 on my Natura. ${card.nearbyCount} nearby observations.`;
     try {
       await Share.share({ message: msg, title });
     } catch {
