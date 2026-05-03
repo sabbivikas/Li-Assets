@@ -175,7 +175,11 @@ export default function HomeScreen() {
 
   const insights = useMemo(() => generateInsights(mapPins), [mapPins]);
 
-  // Loaded successfully, located, but iNaturalist returned nothing nearby.
+  // Loaded successfully, located, but iNaturalist returned no observations.
+  // We key off the raw `observations` list rather than `mapPins` so the
+  // copy ("iNaturalist has no observations…") stays accurate — pins can
+  // also be filtered out by the coord/photo filter in `mapPins`, and that
+  // case still keeps the map visible with whatever did come back.
   const isEmpty =
     permissionGranted &&
     lat != null &&
@@ -183,7 +187,7 @@ export default function HomeScreen() {
     !isLoading &&
     !observationsError &&
     observations !== undefined &&
-    mapPins.length === 0;
+    observations.length === 0;
 
   const nextRadius = RADIUS_STEPS.find((r) => r > radius) ?? null;
 
