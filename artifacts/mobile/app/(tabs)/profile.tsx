@@ -294,7 +294,12 @@ export default function ProfileScreen() {
                 accessibilityLabel="Edit your name"
                 style={styles.nameRow}
               >
-                <Text style={styles.name} numberOfLines={1}>
+                <Text
+                  style={styles.name}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
+                >
                   {fullName ?? "Natura member"}
                 </Text>
                 <Feather name="edit-2" size={14} color={PAINT.inkMute} />
@@ -532,8 +537,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginTop: 2,
+    alignSelf: "stretch",
   },
-  passportInfo: { flex: 1 },
+  passportInfo: { flex: 1, minWidth: 0 },
   naturalistLabel: {
     fontFamily: LABEL_FONT,
     fontSize: 14,
@@ -543,10 +549,12 @@ const styles = StyleSheet.create({
   },
   name: {
     fontFamily: HAND_FONT,
-    fontSize: 32,
+    fontSize: 28,
     color: PAINT.ink,
-    lineHeight: 36,
+    lineHeight: 34,
     marginTop: 2,
+    flexShrink: 1,
+    flexGrow: 1,
   },
   email: {
     fontFamily: LABEL_FONT,
