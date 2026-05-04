@@ -16,6 +16,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -91,6 +92,18 @@ export default function RootLayout() {
 
   if (!fontsLoaded && !fontError) return null;
 
+  if (!publishableKey) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorTitle}>Configuration Error</Text>
+        <Text style={styles.errorBody}>
+          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is not set.{"\n"}Please rebuild the
+          app with the correct environment variables.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <ClerkProvider
       publishableKey={publishableKey}
@@ -115,3 +128,25 @@ export default function RootLayout() {
     </ClerkProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    backgroundColor: "#fdf6e3",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#b91c1c",
+    marginBottom: 12,
+  },
+  errorBody: {
+    fontSize: 14,
+    color: "#374151",
+    textAlign: "center",
+    lineHeight: 22,
+  },
+});
