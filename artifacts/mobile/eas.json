@@ -1,0 +1,28 @@
+{
+  "cli": {
+    "version": ">= 16.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "image": "macos-sequoia-15.4-xcode-16.3"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "image": "macos-sequoia-15.4-xcode-16.3"
+      }
+    },
+    "production": {
+      "ios": {
+        "image": "macos-sequoia-15.4-xcode-16.3"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
