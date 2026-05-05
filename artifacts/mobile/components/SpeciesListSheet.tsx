@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, {
   Easing,
   runOnJS,
@@ -95,6 +95,7 @@ export function SpeciesListSheet({ pins, onClose, onSelect }: Props) {
       animationType="none"
       onRequestClose={onClose}
     >
+      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
       <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
@@ -174,6 +175,7 @@ export function SpeciesListSheet({ pins, onClose, onSelect }: Props) {
           </ScrollView>
         <Text style={styles.hint}>Swipe down or tap outside to dismiss</Text>
       </Animated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, {
   Easing,
   runOnJS,
@@ -111,6 +111,7 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
       animationType="none"
       onRequestClose={onClose}
     >
+      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
       <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
@@ -207,6 +208,7 @@ export function SpeciesBottomSheet({ selection, onClose }: Props) {
           <Text style={styles.hint}>Swipe down or tap outside to dismiss</Text>
         </Animated.View>
       </GestureDetector>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
