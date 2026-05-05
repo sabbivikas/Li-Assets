@@ -94,10 +94,13 @@ export default function SpeciesDetailScreen() {
     }).catch(() => {});
   }, [taxon, observations]);
 
+  // Prefer medium_url over large_url to keep image memory low — large_url can
+  // be 1024px+ and on iOS New Architecture has triggered crashes when expo-image
+  // loads it alongside many SVG components on the same screen.
   const photoUrl =
-    taxon?.taxon_photos?.[0]?.photo?.large_url ||
     taxon?.taxon_photos?.[0]?.photo?.medium_url ||
-    taxon?.default_photo?.medium_url;
+    taxon?.default_photo?.medium_url ||
+    taxon?.taxon_photos?.[0]?.photo?.large_url;
 
   const group = getIconicGroup(taxon?.iconic_taxon_name);
   const Critter = GROUP_CRITTER[group] ?? Flower;
@@ -116,16 +119,23 @@ export default function SpeciesDetailScreen() {
   const lastSeen = dates?.[0];
 
   const histData = histogram?.results || {};
-  const histEntries = Object.entries(histData)
+  // Sanitize histogram entries: filter out non-numeric/NaN/negative values which
+  // would produce NaN heights and crash react-native-svg <Rect> on iOS.
+  const histEntries: Array<[string, number]> = Object.entries(histData)
+    .map(([d, v]) => {
+      const n = typeof v === "number" ? v : Number(v);
+      return [d, Number.isFinite(n) && n >= 0 ? n : 0] as [string, number];
+    })
+    .filter(([d]) => typeof d === "string" && d.length >= 4)
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-24);
-  const maxCount = Math.max(...histEntries.map(([, v]) => v as number), 1);
+  const maxCount = Math.max(...histEntries.map(([, v]) => v), 1);
   const currentYear = new Date().getFullYear();
 
   const yearCounts: Record<string, number> = {};
   histEntries.forEach(([date, count]) => {
     const year = date.slice(0, 4);
-    yearCounts[year] = (yearCounts[year] || 0) + (count as number);
+    yearCounts[year] = (yearCounts[year] || 0) + count;
   });
 
   const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
@@ -290,7 +300,8 @@ export default function SpeciesDetailScreen() {
                       viewBox={`0 0 ${histEntries.length * 13} ${CHART_HEIGHT}`}
                     >
                       {histEntries.map(([date, count], i) => {
-                        const h = ((count as number) / maxCount) * (CHART_HEIGHT - 14);
+                        const raw = (count / maxCount) * (CHART_HEIGHT - 14);
+                        const h = Number.isFinite(raw) ? Math.max(0, raw) : 0;
                         const isCurrent = date.slice(0, 4) === String(currentYear);
                         return (
                           <Rect
