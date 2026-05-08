@@ -210,6 +210,103 @@ export async function fetchRecentObservations(
   return data.results || [];
 }
 
+export async function fetchSeasonalityData(
+  taxonId: number
+): Promise<Array<{ month: number; count: number }>> {
+  const data = await get<HistogramResult>("/observations/histogram", {
+    taxon_id: taxonId,
+    date_field: "observed",
+    interval: "month",
+  });
+  const monthly: Record<number, number> = {};
+  Object.entries(data.results || {}).forEach(([date, value]) => {
+    const m = parseInt(date.slice(5, 7), 10);
+    if (m >= 1 && m <= 12) {
+      const n = typeof value === "number" ? value : Number(value);
+      monthly[m] = (monthly[m] || 0) + (Number.isFinite(n) ? n : 0);
+    }
+  });
+  return Array.from({ length: 12 }, (_, i) => ({
+    month: i + 1,
+    count: monthly[i + 1] || 0,
+  }));
+}
+
+export async function fetchYearlyHistogram(
+  taxonId: number
+): Promise<Array<{ year: number; count: number }>> {
+  const data = await get<HistogramResult>("/observations/histogram", {
+    taxon_id: taxonId,
+    date_field: "observed",
+    interval: "year",
+  });
+  return Object.entries(data.results || {})
+    .map(([date, value]) => {
+      const n = typeof value === "number" ? value : Number(value);
+      return { year: parseInt(date.slice(0, 4), 10), count: Number.isFinite(n) ? n : 0 };
+    })
+    .filter((e) => e.year >= 2000)
+    .sort((a, b) => a.year - b.year);
+}
+
+const LIFE_STAGE_VALUES = [
+  { id: 2, label: "Adult" },
+  { id: 7, label: "Juvenile" },
+  { id: 5, label: "Larva" },
+  { id: 4, label: "Pupa" },
+  { id: 6, label: "Egg" },
+  { id: 3, label: "Teneral" },
+  { id: 9, label: "Nymph" },
+];
+
+const SEX_VALUES = [
+  { id: 10, label: "Female" },
+  { id: 11, label: "Male" },
+  { id: 21, label: "Unknown" },
+];
+
+export async function fetchLifeStageCounts(
+  taxonId: number
+): Promise<Array<{ label: string; count: number }>> {
+  const results = await Promise.all(
+    LIFE_STAGE_VALUES.map(async ({ id, label }) => {
+      try {
+        const data = await get<{ total_results: number }>("/observations", {
+          taxon_id: taxonId,
+          term_id: 1,
+          term_value_id: id,
+          per_page: 0,
+        });
+        return { label, count: data.total_results || 0 };
+      } catch {
+        return { label, count: 0 };
+      }
+    })
+  );
+  return results.filter((r) => r.count > 0);
+}
+
+export async function fetchSexCounts(
+  taxonId: number
+): Promise<Array<{ label: string; count: number }>> {
+  const results = await Promise.all(
+    SEX_VALUES.map(async ({ id, label }) => {
+      try {
+        const data = await get<{ total_results: number }>("/observations", {
+          taxon_id: taxonId,
+          term_id: 9,
+          term_value_id: id,
+          per_page: 0,
+        });
+        return { label, count: data.total_results || 0 };
+      } catch {
+        return { label, count: 0 };
+      }
+    })
+  );
+  return results.filter((r) => r.count > 0);
+}
+
 export async function fetchHistoricalSpecies(
   lat: number,
   lng: number,

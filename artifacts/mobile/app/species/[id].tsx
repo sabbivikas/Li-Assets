@@ -13,7 +13,6 @@ import {
   Text,
   View,
 } from "react-native";
-import Svg, { Path, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -27,7 +26,6 @@ import {
   Mushroom,
   PaperBackground,
   PAINT,
-  wobble,
   WobbleBox,
   WobbleButton,
 } from "@/components/paint";
@@ -37,8 +35,8 @@ import {
   getRoleColor,
   getRoleLabel,
 } from "@/services/ecologyModel";
+import { SpeciesCharts } from "@/components/SpeciesCharts";
 import {
-  fetchObservationHistogram,
   fetchSpeciesById,
   fetchSpeciesObservations,
   getConservationLabel,
@@ -46,7 +44,6 @@ import {
 } from "@/services/iNaturalist";
 import { unlockCard } from "@/services/lifeCards";
 
-const CHART_HEIGHT = 90;
 
 const GROUP_CRITTER: Record<string, React.ComponentType<{ size?: number }>> = {
   Birds: Bird,
@@ -75,13 +72,7 @@ export default function SpeciesDetailScreen() {
     enabled: !!taxonId && !!lat && !!lng,
   });
 
-  const { data: histogram, isLoading: loadingHist } = useQuery({
-    queryKey: ["histogram", taxonId, lat, lng, radius],
-    queryFn: () => fetchObservationHistogram(taxonId, lat!, lng!, radius),
-    enabled: !!taxonId && !!lat && !!lng,
-  });
-
-  const isLoading = loadingTaxon || loadingObs || loadingHist;
+  const isLoading = loadingTaxon || loadingObs;
 
   // Discovery unlock — fires once when the species + nearby observations resolve.
   useEffect(() => {
@@ -117,26 +108,6 @@ export default function SpeciesDetailScreen() {
     .sort() as string[];
   const firstSeen = dates?.[dates.length - 1];
   const lastSeen = dates?.[0];
-
-  const histData = histogram?.results || {};
-  // Sanitize histogram entries: filter out non-numeric/NaN/negative values which
-  // would produce NaN heights and crash react-native-svg <Rect> on iOS.
-  const histEntries: Array<[string, number]> = Object.entries(histData)
-    .map(([d, v]) => {
-      const n = typeof v === "number" ? v : Number(v);
-      return [d, Number.isFinite(n) && n >= 0 ? n : 0] as [string, number];
-    })
-    .filter(([d]) => typeof d === "string" && d.length >= 4)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-24);
-  const maxCount = Math.max(...histEntries.map(([, v]) => v), 1);
-  const currentYear = new Date().getFullYear();
-
-  const yearCounts: Record<string, number> = {};
-  histEntries.forEach(([date, count]) => {
-    const year = date.slice(0, 4);
-    yearCounts[year] = (yearCounts[year] || 0) + count;
-  });
 
   const topInsets = insets.top + (Platform.OS === "web" ? 67 : 0);
   const bottomInsets = insets.bottom + (Platform.OS === "web" ? 34 : 0);
@@ -278,136 +249,8 @@ export default function SpeciesDetailScreen() {
               })}
             </View>
 
-            {/* Observation timeline */}
-            {histEntries.length > 0 && (
-              <>
-                <SectionTitle
-                  text="Observation Timeline"
-                  color={PAINT.blue}
-                  seed={11}
-                />
-                <WobbleBox
-                  width={358}
-                  height={CHART_HEIGHT + 56}
-                  fill="white"
-                  seed={21}
-                  padding={14}
-                >
-                  <View>
-                    <Svg
-                      width={330}
-                      height={CHART_HEIGHT}
-                      viewBox={`0 0 ${histEntries.length * 13} ${CHART_HEIGHT}`}
-                    >
-                      {histEntries.map(([date, count], i) => {
-                        const raw = (count / maxCount) * (CHART_HEIGHT - 14);
-                        const h = Number.isFinite(raw) ? Math.max(0, raw) : 0;
-                        const isCurrent = date.slice(0, 4) === String(currentYear);
-                        return (
-                          <Rect
-                            key={date}
-                            x={i * 13 + 2}
-                            y={CHART_HEIGHT - h - 8}
-                            width={9}
-                            height={h}
-                            fill={isCurrent ? PAINT.grassDeep : PAINT.blue}
-                            fillOpacity={isCurrent ? 0.85 : 0.5}
-                            stroke={PAINT.ink}
-                            strokeWidth={0.6}
-                          />
-                        );
-                      })}
-                      <Path
-                        d={wobble(
-                          0,
-                          CHART_HEIGHT - 6,
-                          histEntries.length * 13,
-                          CHART_HEIGHT - 6,
-                          0.3,
-                          12,
-                          7
-                        )}
-                        stroke={PAINT.ink}
-                        strokeWidth={1}
-                        fill="none"
-                      />
-                    </Svg>
-                    <View style={styles.chartLegend}>
-                      <Text style={styles.chartLegendText}>past 24 months</Text>
-                      <View style={styles.legendItems}>
-                        <View style={styles.legendItem}>
-                          <View
-                            style={[
-                              styles.legendDot,
-                              { backgroundColor: PAINT.grassDeep },
-                            ]}
-                          />
-                          <Text style={styles.legendLabel}>this year</Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                          <View
-                            style={[
-                              styles.legendDot,
-                              { backgroundColor: PAINT.blue, opacity: 0.5 },
-                            ]}
-                          />
-                          <Text style={styles.legendLabel}>previous</Text>
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-                </WobbleBox>
-              </>
-            )}
-
-            {/* Yearly */}
-            {Object.keys(yearCounts).length > 1 && (
-              <>
-                <SectionTitle
-                  text="Yearly Activity"
-                  color={PAINT.orange}
-                  seed={31}
-                />
-                <View style={{ gap: 8 }}>
-                  {Object.entries(yearCounts)
-                    .sort(([a], [b]) => b.localeCompare(a))
-                    .slice(0, 5)
-                    .map(([year, count], i) => {
-                      const max = Math.max(...Object.values(yearCounts));
-                      const widthPct = (count / max) * 100;
-                      const isCurrent = year === String(currentYear);
-                      return (
-                        <WobbleBox
-                          key={year}
-                          width={358}
-                          height={42}
-                          fill="white"
-                          seed={i * 5 + 41}
-                          padding={0}
-                        >
-                          <View style={styles.yearRow}>
-                            <Text style={styles.yearLabel}>{year}</Text>
-                            <View style={styles.yearBarTrack}>
-                              <View
-                                style={[
-                                  styles.yearBarFill,
-                                  {
-                                    width: `${widthPct}%`,
-                                    backgroundColor: isCurrent
-                                      ? PAINT.grassDeep
-                                      : PAINT.blue + "99",
-                                  },
-                                ]}
-                              />
-                            </View>
-                            <Text style={styles.yearCount}>{count}</Text>
-                          </View>
-                        </WobbleBox>
-                      );
-                    })}
-                </View>
-              </>
-            )}
+            {/* Tabbed charts: Seasonality, History, Life Stage, Sex */}
+            <SpeciesCharts taxonId={taxonId} />
 
             {/* Wikipedia */}
             {taxon.wikipedia_url && (
@@ -660,51 +503,6 @@ const styles = StyleSheet.create({
   },
   roleDot: { width: 8, height: 8, borderRadius: 4 },
   roleText: { fontFamily: LABEL_FONT, fontSize: 12, fontWeight: "700" },
-  chartLegend: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
-  chartLegendText: {
-    fontFamily: LABEL_FONT,
-    fontSize: 11,
-    color: PAINT.inkMute,
-  },
-  legendItems: { flexDirection: "row", gap: 12 },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendLabel: { fontFamily: LABEL_FONT, fontSize: 11, color: PAINT.inkSoft },
-  yearRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-  },
-  yearLabel: {
-    fontFamily: HAND_FONT,
-    fontSize: 18,
-    width: 46,
-    color: PAINT.ink,
-  },
-  yearBarTrack: {
-    flex: 1,
-    height: 8,
-    backgroundColor: PAINT.paperDeep,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: PAINT.ink,
-    overflow: "hidden",
-  },
-  yearBarFill: { height: "100%" },
-  yearCount: {
-    fontFamily: HAND_FONT,
-    fontSize: 18,
-    color: PAINT.ink,
-    width: 36,
-    textAlign: "right",
-  },
   wikiInner: {
     flex: 1,
     flexDirection: "row",
