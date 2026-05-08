@@ -267,62 +267,80 @@ export async function fetchYearlyHistogram(
   }
 }
 
-const LIFE_STAGE_VALUES = [
-  { id: 2, label: "Adult" },
-  { id: 7, label: "Juvenile" },
-  { id: 5, label: "Larva" },
-  { id: 4, label: "Pupa" },
-  { id: 6, label: "Egg" },
-  { id: 3, label: "Teneral" },
-  { id: 9, label: "Nymph" },
-];
-
-const SEX_VALUES = [
-  { id: 10, label: "Female" },
-  { id: 11, label: "Male" },
-  { id: 21, label: "Unknown" },
-];
-
-export async function fetchLifeStageCounts(
-  taxonId: number
-): Promise<Array<{ label: string; count: number }>> {
-  const results = await Promise.all(
-    LIFE_STAGE_VALUES.map(async ({ id, label }) => {
-      try {
-        const data = await get<{ total_results: number }>("/observations", {
-          taxon_id: taxonId,
-          term_id: 1,
-          term_value_id: id,
-          per_page: 0,
-        });
-        return { label, count: data.total_results || 0 };
-      } catch {
-        return { label, count: 0 };
-      }
-    })
-  );
-  return results.filter((r) => r.count > 0);
+export interface MonthlySeriesData {
+  label: string;
+  color: string;
+  monthData: number[]; // 12 values, index 0 = January
 }
 
-export async function fetchSexCounts(
-  taxonId: number
-): Promise<Array<{ label: string; count: number }>> {
-  const results = await Promise.all(
-    SEX_VALUES.map(async ({ id, label }) => {
-      try {
-        const data = await get<{ total_results: number }>("/observations", {
-          taxon_id: taxonId,
-          term_id: 9,
-          term_value_id: id,
-          per_page: 0,
-        });
-        return { label, count: data.total_results || 0 };
-      } catch {
-        return { label, count: 0 };
+async function fetchMonthlyForAnnotation(
+  taxonId: number,
+  termId: number,
+  termValueId: number
+): Promise<number[]> {
+  try {
+    const data = await get<HistogramResult>("/observations/histogram", {
+      taxon_id: taxonId,
+      date_field: "observed",
+      interval: "month",
+      term_id: termId,
+      term_value_id: termValueId,
+    });
+    const inner = data.results?.month || {};
+    const monthly: Record<number, number> = {};
+    Object.entries(inner).forEach(([date, value]) => {
+      const m = parseInt(date.slice(5, 7), 10);
+      if (m >= 1 && m <= 12) {
+        const n = typeof value === "number" ? value : Number(value);
+        monthly[m] = (monthly[m] || 0) + (Number.isFinite(n) ? n : 0);
       }
-    })
+    });
+    return Array.from({ length: 12 }, (_, i) => monthly[i + 1] || 0);
+  } catch {
+    return Array(12).fill(0) as number[];
+  }
+}
+
+const LIFE_STAGE_SERIES = [
+  { id: 2, label: "Adult",    color: "#5b8def" },
+  { id: 7, label: "Juvenile", color: "#f08a3a" },
+  { id: 5, label: "Larva",    color: "#e25555" },
+  { id: 4, label: "Pupa",     color: "#5fae5f" },
+  { id: 6, label: "Egg",      color: "#ffd24a" },
+  { id: 3, label: "Teneral",  color: "#f5a3c7" },
+  { id: 9, label: "Nymph",   color: "#a78bd9" },
+];
+
+const SEX_SERIES = [
+  { id: 10, label: "Female",  color: "#f5a3c7" },
+  { id: 11, label: "Male",    color: "#5b8def" },
+  { id: 21, label: "Unknown", color: "#888888" },
+];
+
+export async function fetchLifeStageSeasonality(
+  taxonId: number
+): Promise<MonthlySeriesData[]> {
+  const results = await Promise.all(
+    LIFE_STAGE_SERIES.map(async ({ id, label, color }) => ({
+      label,
+      color,
+      monthData: await fetchMonthlyForAnnotation(taxonId, 1, id),
+    }))
   );
-  return results.filter((r) => r.count > 0);
+  return results.filter((s) => s.monthData.some((v) => v > 0));
+}
+
+export async function fetchSexSeasonality(
+  taxonId: number
+): Promise<MonthlySeriesData[]> {
+  const results = await Promise.all(
+    SEX_SERIES.map(async ({ id, label, color }) => ({
+      label,
+      color,
+      monthData: await fetchMonthlyForAnnotation(taxonId, 9, id),
+    }))
+  );
+  return results.filter((s) => s.monthData.some((v) => v > 0));
 }
 
 export async function fetchHistoricalSpecies(
