@@ -8,6 +8,7 @@ localPort = 5173
 name = "web"
 paths = ["/explore/"]
 serve = "static"
+publicDir = "dist"
 
 [services.development]
 run = "pnpm --filter @workspace/web run dev"
