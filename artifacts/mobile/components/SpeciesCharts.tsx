@@ -88,6 +88,21 @@ export function SpeciesCharts({ taxonId }: Props) {
     (activeTab === "Life Stage" && loadLS) ||
     (activeTab === "Sex" && loadSex);
 
+  const boxHeight = (() => {
+    if (isLoading) return 130;
+    if (activeTab === "Seasonality") return 162;
+    if (activeTab === "History") return 162;
+    if (activeTab === "Life Stage") {
+      const n = lifeStage?.length ?? 0;
+      return n === 0 ? 90 : 40 + n * 44 + 24;
+    }
+    if (activeTab === "Sex") {
+      const n = sex?.length ?? 0;
+      return n === 0 ? 90 : 40 + n * 44 + 24;
+    }
+    return 162;
+  })();
+
   return (
     <View style={styles.root}>
       {/* Section header */}
@@ -122,7 +137,7 @@ export function SpeciesCharts({ taxonId }: Props) {
       {/* Chart area */}
       <WobbleBox
         width={358}
-        height={isLoading ? 130 : activeTab === "Seasonality" ? 162 : activeTab === "History" ? 162 : 40 + Math.max(1, (activeTab === "Life Stage" ? lifeStage?.length : sex?.length) ?? 1) * 44 + 24}
+        height={boxHeight}
         fill="white"
         seed={99}
         padding={14}
@@ -158,11 +173,13 @@ export function SpeciesCharts({ taxonId }: Props) {
 }
 
 function SeasonalityChart({ data }: { data: Array<{ month: number; count: number }> }) {
+  const hasData = data.length > 0 && data.some((d) => d.count > 0);
+  if (!hasData) return <EmptyState msg="No seasonality data available" />;
+
   const maxCount = Math.max(...data.map((d) => d.count), 1);
   const barW = CHART_W / 12;
   const usableH = CHART_H - 20;
 
-  // Build smooth area path
   const points = data.map((d, i) => ({
     x: i * barW + barW / 2,
     y: usableH - (d.count / maxCount) * (usableH - 6) + 4,
@@ -180,7 +197,10 @@ function SeasonalityChart({ data }: { data: Array<{ month: number; count: number
     ? `${pathD} L ${points[points.length - 1].x} ${usableH + 4} L ${points[0].x} ${usableH + 4} Z`
     : "";
 
-  const peakMonth = data.reduce((best, d) => (d.count > best.count ? d : best), data[0]);
+  const peakMonth = data.reduce(
+    (best, d) => (d.count > best.count ? d : best),
+    data[0] ?? { month: 1, count: 0 }
+  );
 
   return (
     <View>

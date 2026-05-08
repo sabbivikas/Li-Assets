@@ -213,40 +213,48 @@ export async function fetchRecentObservations(
 export async function fetchSeasonalityData(
   taxonId: number
 ): Promise<Array<{ month: number; count: number }>> {
-  const data = await get<HistogramResult>("/observations/histogram", {
-    taxon_id: taxonId,
-    date_field: "observed",
-    interval: "month",
-  });
-  const monthly: Record<number, number> = {};
-  Object.entries(data.results || {}).forEach(([date, value]) => {
-    const m = parseInt(date.slice(5, 7), 10);
-    if (m >= 1 && m <= 12) {
-      const n = typeof value === "number" ? value : Number(value);
-      monthly[m] = (monthly[m] || 0) + (Number.isFinite(n) ? n : 0);
-    }
-  });
-  return Array.from({ length: 12 }, (_, i) => ({
-    month: i + 1,
-    count: monthly[i + 1] || 0,
-  }));
+  try {
+    const data = await get<HistogramResult>("/observations/histogram", {
+      taxon_id: taxonId,
+      date_field: "observed",
+      interval: "month",
+    });
+    const monthly: Record<number, number> = {};
+    Object.entries(data.results || {}).forEach(([date, value]) => {
+      const m = parseInt(date.slice(5, 7), 10);
+      if (m >= 1 && m <= 12) {
+        const n = typeof value === "number" ? value : Number(value);
+        monthly[m] = (monthly[m] || 0) + (Number.isFinite(n) ? n : 0);
+      }
+    });
+    return Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      count: monthly[i + 1] || 0,
+    }));
+  } catch {
+    return Array.from({ length: 12 }, (_, i) => ({ month: i + 1, count: 0 }));
+  }
 }
 
 export async function fetchYearlyHistogram(
   taxonId: number
 ): Promise<Array<{ year: number; count: number }>> {
-  const data = await get<HistogramResult>("/observations/histogram", {
-    taxon_id: taxonId,
-    date_field: "observed",
-    interval: "year",
-  });
-  return Object.entries(data.results || {})
-    .map(([date, value]) => {
-      const n = typeof value === "number" ? value : Number(value);
-      return { year: parseInt(date.slice(0, 4), 10), count: Number.isFinite(n) ? n : 0 };
-    })
-    .filter((e) => e.year >= 2000)
-    .sort((a, b) => a.year - b.year);
+  try {
+    const data = await get<HistogramResult>("/observations/histogram", {
+      taxon_id: taxonId,
+      date_field: "observed",
+      interval: "year",
+    });
+    return Object.entries(data.results || {})
+      .map(([date, value]) => {
+        const n = typeof value === "number" ? value : Number(value);
+        return { year: parseInt(date.slice(0, 4), 10), count: Number.isFinite(n) ? n : 0 };
+      })
+      .filter((e) => e.year >= 2000)
+      .sort((a, b) => a.year - b.year);
+  } catch {
+    return [];
+  }
 }
 
 const LIFE_STAGE_VALUES = [
