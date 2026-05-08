@@ -34,7 +34,7 @@ export interface ObservationResult {
 }
 
 export interface HistogramResult {
-  results: { [date: string]: number };
+  results: { [interval: string]: { [date: string]: number } };
 }
 
 export class INatNetworkError extends Error {
@@ -158,15 +158,21 @@ export async function fetchObservationHistogram(
   lat: number,
   lng: number,
   radiusKm: number
-): Promise<HistogramResult> {
-  return get<HistogramResult>("/observations/histogram", {
-    taxon_id: taxonId,
-    lat,
-    lng,
-    radius: radiusKm,
-    date_field: "observed",
-    interval: "month",
-  });
+): Promise<{ results: { [date: string]: number } }> {
+  try {
+    const data = await get<HistogramResult>("/observations/histogram", {
+      taxon_id: taxonId,
+      lat,
+      lng,
+      radius: radiusKm,
+      date_field: "observed",
+      interval: "month",
+    });
+    // Unwrap nested "month" key so callers get a flat date->count map
+    return { results: data.results?.month || {} };
+  } catch {
+    return { results: {} };
+  }
 }
 
 export async function fetchLocationSignals(
@@ -219,8 +225,10 @@ export async function fetchSeasonalityData(
       date_field: "observed",
       interval: "month",
     });
+    // API returns results.month["YYYY-MM-DD"] -> number
+    const inner = data.results?.month || {};
     const monthly: Record<number, number> = {};
-    Object.entries(data.results || {}).forEach(([date, value]) => {
+    Object.entries(inner).forEach(([date, value]) => {
       const m = parseInt(date.slice(5, 7), 10);
       if (m >= 1 && m <= 12) {
         const n = typeof value === "number" ? value : Number(value);
@@ -245,12 +253,14 @@ export async function fetchYearlyHistogram(
       date_field: "observed",
       interval: "year",
     });
-    return Object.entries(data.results || {})
+    // API returns results.year["YYYY-01-01"] -> number
+    const inner = data.results?.year || {};
+    return Object.entries(inner)
       .map(([date, value]) => {
         const n = typeof value === "number" ? value : Number(value);
         return { year: parseInt(date.slice(0, 4), 10), count: Number.isFinite(n) ? n : 0 };
       })
-      .filter((e) => e.year >= 2000)
+      .filter((e) => e.year >= 2000 && e.count > 0)
       .sort((a, b) => a.year - b.year);
   } catch {
     return [];
