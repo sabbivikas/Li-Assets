@@ -1,0 +1,176 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&display=swap');
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-border: var(--ink-soft);
+  --color-input: var(--ink-soft);
+  --color-ring: var(--grass);
+
+  --color-card: var(--paper-deep);
+  --color-card-foreground: var(--ink);
+  --color-card-border: var(--ink-mute);
+
+  --color-popover: var(--paper-deep);
+  --color-popover-foreground: var(--ink);
+  --color-popover-border: var(--ink-mute);
+
+  --color-primary: var(--grass);
+  --color-primary-foreground: var(--ink);
+  --color-primary-border: var(--grass);
+
+  --color-secondary: var(--sun);
+  --color-secondary-foreground: var(--ink);
+  --color-secondary-border: var(--sun);
+
+  --color-muted: var(--paper-deep);
+  --color-muted-foreground: var(--ink-mute);
+  --color-muted-border: var(--ink-mute);
+
+  --color-accent: var(--sky);
+  --color-accent-foreground: var(--ink);
+  --color-accent-border: var(--sky);
+
+  --color-destructive: var(--orange);
+  --color-destructive-foreground: var(--paper);
+  --color-destructive-border: var(--orange);
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+  
+  --font-display: 'Caveat', cursive;
+  --font-body: 'Patrick Hand', cursive;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+:root {
+  --paper: #fdf6e3;
+  --paper-deep: #f0e8d4;
+  --ink: #1a1a1a;
+  --ink-soft: #5a5a5a;
+  --ink-mute: #888888;
+  --grass: #7fc77f;
+  --sky: #a8d8f0;
+  --sun: #ffd24a;
+  --pink: #f5a3c7;
+  --purple: #a78bd9;
+  --orange: #f08a3a;
+
+  --app-font-sans: 'Patrick Hand', cursive;
+  --app-font-serif: 'Caveat', cursive;
+  --app-font-mono: monospace;
+  
+  --radius: 8px;
+}
+
+.dark {
+  /* No dark mode for this papery aesthetic unless forced, but let's provide a sepia invert if needed */
+  --paper: #2a2824;
+  --paper-deep: #211f1c;
+  --ink: #e8e6e3;
+  --ink-soft: #a6a39f;
+  --ink-mute: #73716d;
+  --grass: #5c9e5c;
+  --sky: #7aacc2;
+  --sun: #d1ab34;
+  --pink: #c982a1;
+  --purple: #866bb3;
+  --orange: #c46d29;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground overflow-x-hidden;
+    background-image: 
+      radial-gradient(var(--ink-mute) 0.5px, transparent 0.5px),
+      radial-gradient(var(--ink-mute) 0.5px, transparent 0.5px);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    background-attachment: fixed;
+    background-color: var(--paper);
+    opacity: 0.95; /* soften the dots */
+  }
+  
+  /* Textures */
+  .paper-texture {
+    position: relative;
+  }
+  
+  .paper-texture::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0.4;
+    mix-blend-mode: multiply;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+/* Custom scribble underline */
+.scribble-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.scribble-underline::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10' preserveAspectRatio='none'%3E%3Cpath d='M0 5 Q 25 1 50 5 T 100 5' stroke='%237fc77f' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 50px 100%;
+  animation: scribble 2s infinite linear;
+}
+
+@keyframes scribble {
+  to {
+    background-position: 50px 0;
+  }
+}
+
+/* Polaroid Card */
+.polaroid {
+  background: white;
+  padding: 10px 10px 30px 10px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
+  transform: rotate(-2deg);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.polaroid:nth-child(even) {
+  transform: rotate(2deg);
+}
+
+.polaroid:hover {
+  transform: scale(1.05) rotate(0deg);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.15), 0 3px 6px rgba(0,0,0,0.1);
+  z-index: 10;
+}
