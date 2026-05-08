@@ -6,7 +6,7 @@ import { PolaroidCard } from "@/components/ui/polaroid-card";
 import { Input } from "@/components/ui/input";
 import { Search, MapPin, Locate, AlertCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import mascotSrc from "../../../mobile/assets/images/icon.png";
+import { LiveEarth } from "@/components/LiveEarth";
 
 const CATEGORIES = ["All", "Birds", "Plants", "Insects", "Mammals", "Amphibians", "Fungi", "Reptiles"];
 
@@ -19,13 +19,9 @@ function LocationPrompt({ onAllow, onSkip }: { onAllow: () => void; onSkip: () =
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="max-w-md w-full text-center"
       >
-        <motion.img
-          src={mascotSrc}
-          alt="Natura"
-          className="w-36 h-36 mx-auto mb-6 drop-shadow-lg"
-          animate={{ y: [0, -10, 0], rotate: [-2, 2, -2] }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        />
+        <div className="flex justify-center mb-6 drop-shadow-lg">
+          <LiveEarth size={160} />
+        </div>
 
         <h1 className="font-display text-4xl font-bold text-foreground mb-3">
           What's living near <span className="text-primary">you?</span>
