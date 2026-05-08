@@ -37,6 +37,10 @@ const TABS = ["Seasonality", "History", "Life Stage", "Sex"] as const;
 type Tab = (typeof TABS)[number];
 
 const MONTH_SHORT = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+const MONTH_FULL = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 
 const TAB_COLORS: Record<Tab, string> = {
   Seasonality: PAINT.grass,
@@ -55,10 +59,14 @@ const X_AXIS_H = 14;
 const SVG_W = INNER_W;
 const SVG_H = PLOT_H + X_AXIS_H;
 
+function colW(n: number) {
+  return PLOT_W / n;
+}
+
 function monthlyToPoints(monthData: number[], maxVal: number) {
-  const barW = PLOT_W / 12;
+  const w = colW(12);
   return monthData.map((count, i) => ({
-    x: Y_AXIS_W + i * barW + barW / 2,
+    x: Y_AXIS_W + i * w + w / 2,
     y: PLOT_H - (count / maxVal) * (PLOT_H - 10) + 5,
   }));
 }
@@ -85,9 +93,10 @@ function yTicks(maxVal: number) {
   }));
 }
 
-function formatK(n: number): string {
+function formatNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
+  if (n >= 10_000) return `${Math.round(n / 1_000)}K`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n > 0 ? String(Math.round(n)) : "0";
 }
 
@@ -97,6 +106,14 @@ interface Props {
 
 export function SpeciesCharts({ taxonId }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("Seasonality");
+  // selected column index (0-based) per tab, null = none
+  const [selected, setSelected] = useState<number | null>(null);
+
+  // Reset selection when switching tabs
+  const switchTab = (tab: Tab) => {
+    setActiveTab(tab);
+    setSelected(null);
+  };
 
   const { data: seasonality, isLoading: loadSeason } = useQuery({
     queryKey: ["seasonality", taxonId],
@@ -139,16 +156,16 @@ export function SpeciesCharts({ taxonId }: Props) {
 
   const boxHeight = (() => {
     if (isLoading) return 140;
-    const baseH = SVG_H + BOX_PAD * 2;
+    const baseH = SVG_H + BOX_PAD * 2 + 20; // +20 for hint row
     if (activeTab === "Seasonality") return baseH;
     if (activeTab === "History") return baseH;
     if (activeTab === "Life Stage") {
       if (!lifeStage || lifeStage.length === 0) return 90;
-      return baseH + legendRows(lifeStage) * 22 + 10;
+      return baseH + legendRows(lifeStage) * 22 + 6;
     }
     if (activeTab === "Sex") {
       if (!sex || sex.length === 0) return 90;
-      return baseH + legendRows(sex) * 22 + 10;
+      return baseH + legendRows(sex) * 22 + 6;
     }
     return baseH;
   })();
@@ -164,7 +181,7 @@ export function SpeciesCharts({ taxonId }: Props) {
         {TABS.map((tab) => {
           const active = tab === activeTab;
           return (
-            <Pressable key={tab} onPress={() => setActiveTab(tab)}>
+            <Pressable key={tab} onPress={() => switchTab(tab)}>
               <View
                 style={[
                   styles.tab,
@@ -197,16 +214,26 @@ export function SpeciesCharts({ taxonId }: Props) {
         ) : (
           <>
             {activeTab === "Seasonality" && (
-              <SeasonalityChart data={seasonality ?? []} />
+              <SeasonalityChart
+                data={seasonality ?? []}
+                selected={selected}
+                onSelect={setSelected}
+              />
             )}
             {activeTab === "History" && (
-              <HistoryChart data={yearly ?? []} />
+              <HistoryChart
+                data={yearly ?? []}
+                selected={selected}
+                onSelect={setSelected}
+              />
             )}
             {activeTab === "Life Stage" && (
               <OverlayChart
                 series={lifeStage ?? []}
                 totalMonthly={totalMonthly}
                 emptyMsg="No annotated life stage data"
+                selected={selected}
+                onSelect={setSelected}
               />
             )}
             {activeTab === "Sex" && (
@@ -214,6 +241,8 @@ export function SpeciesCharts({ taxonId }: Props) {
                 series={sex ?? []}
                 totalMonthly={totalMonthly}
                 emptyMsg="No annotated sex data"
+                selected={selected}
+                onSelect={setSelected}
               />
             )}
           </>
@@ -223,8 +252,17 @@ export function SpeciesCharts({ taxonId }: Props) {
   );
 }
 
-function GridAndAxes({ maxVal }: { maxVal: number }) {
+function GridAndAxes({
+  maxVal,
+  labels,
+  highlightIndex,
+}: {
+  maxVal: number;
+  labels: string[];
+  highlightIndex: number | null;
+}) {
   const ticks = yTicks(maxVal);
+  const w = colW(labels.length);
   return (
     <>
       {ticks.map((tick, i) => (
@@ -242,40 +280,113 @@ function GridAndAxes({ maxVal }: { maxVal: number }) {
             fill={PAINT.inkMute}
             textAnchor="end"
           >
-            {formatK(tick.value)}
+            {formatNum(tick.value)}
           </SvgText>
         </React.Fragment>
       ))}
+      {highlightIndex !== null && highlightIndex >= 0 && highlightIndex < labels.length ? (
+        <Rect
+          x={Y_AXIS_W + highlightIndex * w}
+          y={5}
+          width={w}
+          height={PLOT_H - 5}
+          fill={PAINT.ink + "10"}
+          rx={3}
+        />
+      ) : null}
       <Path
         d={wobble(Y_AXIS_W, PLOT_H + 1, SVG_W, PLOT_H + 1, 0.15, 8, 5)}
         stroke={PAINT.ink}
         strokeWidth={1}
         fill="none"
       />
-      {MONTH_SHORT.map((label, i) => {
-        const barW = PLOT_W / 12;
-        return (
-          <SvgText
-            key={i}
-            x={Y_AXIS_W + i * barW + barW / 2}
-            y={SVG_H - 1}
-            fontSize={8}
-            fontFamily={LABEL_FONT}
-            fill={PAINT.inkSoft}
-            textAnchor="middle"
-          >
-            {label}
-          </SvgText>
-        );
-      })}
+      {labels.map((label, i) => (
+        <SvgText
+          key={i}
+          x={Y_AXIS_W + i * w + w / 2}
+          y={SVG_H - 1}
+          fontSize={8}
+          fontFamily={LABEL_FONT}
+          fill={highlightIndex === i ? PAINT.ink : PAINT.inkSoft}
+          textAnchor="middle"
+          fontWeight={highlightIndex === i ? "bold" : "normal"}
+        >
+          {label}
+        </SvgText>
+      ))}
     </>
+  );
+}
+
+function TouchOverlay({
+  count,
+  selected,
+  onSelect,
+}: {
+  count: number;
+  selected: number | null;
+  onSelect: (i: number | null) => void;
+}) {
+  const w = colW(count);
+  return (
+    <View style={[styles.touchOverlay, { left: Y_AXIS_W, width: PLOT_W, height: PLOT_H + 5 }]}>
+      {Array.from({ length: count }).map((_, i) => (
+        <Pressable
+          key={i}
+          onPress={() => onSelect(selected === i ? null : i)}
+          style={{ width: w, height: "100%" }}
+        />
+      ))}
+    </View>
+  );
+}
+
+function Tooltip({
+  title,
+  rows,
+  hint = "Tap a column for details",
+  show,
+}: {
+  title: string;
+  rows: Array<{ label: string; value: string; color?: string }>;
+  hint?: string;
+  show: boolean;
+}) {
+  if (!show) {
+    return (
+      <View style={styles.hintRow}>
+        <Text style={styles.hintText}>{hint}</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.tooltip}>
+      <Text style={styles.tooltipTitle}>{title}</Text>
+      <View style={{ gap: 3 }}>
+        {rows.map((r, i) => (
+          <View key={i} style={styles.tooltipRow}>
+            {r.color ? (
+              <View style={[styles.tooltipDot, { backgroundColor: r.color }]} />
+            ) : (
+              <View style={styles.tooltipDot} />
+            )}
+            <Text style={styles.tooltipLabel}>{r.label}</Text>
+            <Text style={styles.tooltipValue}>{r.value}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
 function SeasonalityChart({
   data,
+  selected,
+  onSelect,
 }: {
   data: Array<{ month: number; count: number }>;
+  selected: number | null;
+  onSelect: (i: number | null) => void;
 }) {
   const hasData = data.length > 0 && data.some((d) => d.count > 0);
   if (!hasData) return <EmptyState msg="No seasonality data" />;
@@ -286,61 +397,91 @@ function SeasonalityChart({
   const line = buildPath(pts);
   const area = buildArea(line, pts);
 
-  const peak = data.reduce(
-    (b, d) => (d.count > b.count ? d : b),
-    data[0] ?? { month: 1, count: 0 }
-  );
-  const peakPt = pts[peak.month - 1];
+  const selVal = selected !== null ? monthData[selected] : null;
+  const selPt = selected !== null ? pts[selected] : null;
 
   return (
-    <Svg width={SVG_W} height={SVG_H}>
-      <Defs>
-        <LinearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0%" stopColor={PAINT.grass} stopOpacity={0.55} />
-          <Stop offset="100%" stopColor={PAINT.grass} stopOpacity={0.04} />
-        </LinearGradient>
-      </Defs>
-      <GridAndAxes maxVal={maxVal} />
-      {area ? <Path d={area} fill="url(#sg)" /> : null}
-      {line ? (
-        <Path
-          d={line}
-          stroke={PAINT.grassDeep}
-          strokeWidth={2.5}
-          fill="none"
-          strokeLinecap="round"
-        />
-      ) : null}
-      {pts.map((pt, i) => (
-        <Circle key={i} cx={pt.x} cy={pt.y} r={3} fill={PAINT.grassDeep} />
-      ))}
-      {peakPt && peak.count > 0 && (
-        <SvgText
-          x={peakPt.x}
-          y={peakPt.y - 7}
-          fontSize={8}
-          fontFamily={LABEL_FONT}
-          fill={PAINT.grassDeep}
-          textAnchor="middle"
-        >
-          {formatK(peak.count)}
-        </SvgText>
-      )}
-    </Svg>
+    <View>
+      <View style={{ width: SVG_W, height: SVG_H }}>
+        <Svg width={SVG_W} height={SVG_H}>
+          <Defs>
+            <LinearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={PAINT.grass} stopOpacity={0.55} />
+              <Stop offset="100%" stopColor={PAINT.grass} stopOpacity={0.04} />
+            </LinearGradient>
+          </Defs>
+          <GridAndAxes maxVal={maxVal} labels={MONTH_SHORT} highlightIndex={selected} />
+          {area ? <Path d={area} fill="url(#sg)" /> : null}
+          {line ? (
+            <Path
+              d={line}
+              stroke={PAINT.grassDeep}
+              strokeWidth={2.5}
+              fill="none"
+              strokeLinecap="round"
+            />
+          ) : null}
+          {pts.map((pt, i) => (
+            <Circle
+              key={i}
+              cx={pt.x}
+              cy={pt.y}
+              r={selected === i ? 5 : 3}
+              fill={selected === i ? PAINT.ink : PAINT.grassDeep}
+              stroke={selected === i ? PAINT.grassDeep : "none"}
+              strokeWidth={selected === i ? 2 : 0}
+            />
+          ))}
+          {selPt && selVal !== null && selVal > 0 ? (
+            <SvgText
+              x={selPt.x}
+              y={selPt.y - 8}
+              fontSize={9}
+              fontFamily={LABEL_FONT}
+              fill={PAINT.ink}
+              textAnchor="middle"
+              fontWeight="bold"
+            >
+              {formatNum(selVal)}
+            </SvgText>
+          ) : null}
+        </Svg>
+        <TouchOverlay count={12} selected={selected} onSelect={onSelect} />
+      </View>
+      <Tooltip
+        show={selected !== null}
+        title={selected !== null ? MONTH_FULL[selected] : ""}
+        rows={
+          selected !== null
+            ? [
+                {
+                  label: "Observations",
+                  value: (monthData[selected] ?? 0).toLocaleString(),
+                  color: PAINT.grassDeep,
+                },
+              ]
+            : []
+        }
+      />
+    </View>
   );
 }
 
 function HistoryChart({
   data,
+  selected,
+  onSelect,
 }: {
   data: Array<{ year: number; count: number }>;
+  selected: number | null;
+  onSelect: (i: number | null) => void;
 }) {
   if (data.length === 0) return <EmptyState msg="No history data" />;
 
   const visible = data.slice(-22);
   const maxVal = Math.max(...visible.map((d) => d.count), 1);
-  const barW = PLOT_W / visible.length;
-  const gap = Math.max(1, barW * 0.15);
+  const w = colW(visible.length);
+  const gap = Math.max(1, w * 0.15);
   const currentYear = new Date().getFullYear();
   const ticks = yTicks(maxVal);
 
@@ -349,77 +490,107 @@ function HistoryChart({
   );
 
   return (
-    <Svg width={SVG_W} height={SVG_H}>
-      <Defs>
-        <LinearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0%" stopColor={PAINT.blue} stopOpacity={0.85} />
-          <Stop offset="100%" stopColor={PAINT.blue} stopOpacity={0.35} />
-        </LinearGradient>
-        <LinearGradient id="hgc" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0%" stopColor={PAINT.grassDeep} stopOpacity={1} />
-          <Stop offset="100%" stopColor={PAINT.grassDeep} stopOpacity={0.5} />
-        </LinearGradient>
-      </Defs>
+    <View>
+      <View style={{ width: SVG_W, height: SVG_H }}>
+        <Svg width={SVG_W} height={SVG_H}>
+          <Defs>
+            <LinearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={PAINT.blue} stopOpacity={0.85} />
+              <Stop offset="100%" stopColor={PAINT.blue} stopOpacity={0.35} />
+            </LinearGradient>
+            <LinearGradient id="hgc" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={PAINT.grassDeep} stopOpacity={1} />
+              <Stop offset="100%" stopColor={PAINT.grassDeep} stopOpacity={0.5} />
+            </LinearGradient>
+            <LinearGradient id="hgs" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={PAINT.orange} stopOpacity={1} />
+              <Stop offset="100%" stopColor={PAINT.orange} stopOpacity={0.6} />
+            </LinearGradient>
+          </Defs>
 
-      {ticks.map((tick, i) => (
-        <React.Fragment key={i}>
+          {ticks.map((tick, i) => (
+            <React.Fragment key={i}>
+              <Path
+                d={`M ${Y_AXIS_W} ${tick.y} L ${SVG_W} ${tick.y}`}
+                stroke={PAINT.ink + "18"}
+                strokeWidth={1}
+              />
+              <SvgText
+                x={Y_AXIS_W - 3}
+                y={tick.y + 3}
+                fontSize={8}
+                fontFamily={LABEL_FONT}
+                fill={PAINT.inkMute}
+                textAnchor="end"
+              >
+                {formatNum(tick.value)}
+              </SvgText>
+            </React.Fragment>
+          ))}
+
+          {visible.map((d, i) => {
+            const h = Math.max(2, (d.count / maxVal) * (PLOT_H - 10));
+            const isCur = d.year === currentYear;
+            const isSel = selected === i;
+            const fill = isSel ? "url(#hgs)" : isCur ? "url(#hgc)" : "url(#hg)";
+            return (
+              <Rect
+                key={d.year}
+                x={Y_AXIS_W + i * w + gap}
+                y={PLOT_H - h + 5}
+                width={w - gap * 2}
+                height={h}
+                fill={fill}
+                stroke={PAINT.ink}
+                strokeWidth={isSel ? 1 : 0.4}
+                rx={2}
+              />
+            );
+          })}
+
           <Path
-            d={`M ${Y_AXIS_W} ${tick.y} L ${SVG_W} ${tick.y}`}
-            stroke={PAINT.ink + "18"}
-            strokeWidth={1}
-          />
-          <SvgText
-            x={Y_AXIS_W - 3}
-            y={tick.y + 3}
-            fontSize={8}
-            fontFamily={LABEL_FONT}
-            fill={PAINT.inkMute}
-            textAnchor="end"
-          >
-            {formatK(tick.value)}
-          </SvgText>
-        </React.Fragment>
-      ))}
-
-      {visible.map((d, i) => {
-        const h = Math.max(2, (d.count / maxVal) * (PLOT_H - 10));
-        const isCur = d.year === currentYear;
-        return (
-          <Rect
-            key={d.year}
-            x={Y_AXIS_W + i * barW + gap}
-            y={PLOT_H - h + 5}
-            width={barW - gap * 2}
-            height={h}
-            fill={isCur ? "url(#hgc)" : "url(#hg)"}
+            d={wobble(Y_AXIS_W, PLOT_H + 1, SVG_W, PLOT_H + 1, 0.15, 8, 5)}
             stroke={PAINT.ink}
-            strokeWidth={0.4}
-            rx={2}
+            strokeWidth={1}
+            fill="none"
           />
-        );
-      })}
 
-      <Path
-        d={wobble(Y_AXIS_W, PLOT_H + 1, SVG_W, PLOT_H + 1, 0.15, 8, 5)}
-        stroke={PAINT.ink}
-        strokeWidth={1}
-        fill="none"
+          {labelIndices.map((i) => (
+            <SvgText
+              key={i}
+              x={Y_AXIS_W + i * w + w / 2}
+              y={SVG_H - 1}
+              fontSize={8}
+              fontFamily={LABEL_FONT}
+              fill={PAINT.inkSoft}
+              textAnchor="middle"
+            >
+              {visible[i]?.year}
+            </SvgText>
+          ))}
+        </Svg>
+        <TouchOverlay count={visible.length} selected={selected} onSelect={onSelect} />
+      </View>
+      <Tooltip
+        show={selected !== null && selected < visible.length}
+        title={
+          selected !== null && visible[selected]
+            ? `Year ${visible[selected]!.year}`
+            : ""
+        }
+        rows={
+          selected !== null && visible[selected]
+            ? [
+                {
+                  label: "Observations",
+                  value: visible[selected]!.count.toLocaleString(),
+                  color: visible[selected]!.year === currentYear ? PAINT.grassDeep : PAINT.blue,
+                },
+              ]
+            : []
+        }
       />
-
-      {labelIndices.map((i) => (
-        <SvgText
-          key={i}
-          x={Y_AXIS_W + i * barW + barW / 2}
-          y={SVG_H - 1}
-          fontSize={8}
-          fontFamily={LABEL_FONT}
-          fill={PAINT.inkSoft}
-          textAnchor="middle"
-        >
-          {visible[i]?.year}
-        </SvgText>
-      ))}
-    </Svg>
+    </View>
   );
 }
 
@@ -427,10 +598,14 @@ function OverlayChart({
   series,
   totalMonthly,
   emptyMsg,
+  selected,
+  onSelect,
 }: {
   series: MonthlySeriesData[];
   totalMonthly: number[];
   emptyMsg: string;
+  selected: number | null;
+  onSelect: (i: number | null) => void;
 }) {
   if (series.length === 0) return <EmptyState msg={emptyMsg} />;
 
@@ -441,78 +616,116 @@ function OverlayChart({
   const totalLine = buildPath(totalPts);
   const totalArea = buildArea(totalLine, totalPts);
 
+  const tooltipRows =
+    selected !== null
+      ? [
+          ...series.map((s) => ({
+            label: s.label,
+            value: (s.monthData[selected] ?? 0).toLocaleString(),
+            color: s.color,
+          })),
+          {
+            label: "Total",
+            value: (totalMonthly[selected] ?? 0).toLocaleString(),
+            color: PAINT.inkMute,
+          },
+        ]
+      : [];
+
   return (
     <View>
-      <Svg width={SVG_W} height={SVG_H}>
-        <Defs>
-          <LinearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor={PAINT.inkMute} stopOpacity={0.18} />
-            <Stop offset="100%" stopColor={PAINT.inkMute} stopOpacity={0.02} />
-          </LinearGradient>
-          {series.map((s, si) => (
-            <LinearGradient key={si} id={`og${si}`} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor={s.color} stopOpacity={0.4} />
-              <Stop offset="100%" stopColor={s.color} stopOpacity={0.03} />
+      <View style={{ width: SVG_W, height: SVG_H }}>
+        <Svg width={SVG_W} height={SVG_H}>
+          <Defs>
+            <LinearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={PAINT.inkMute} stopOpacity={0.18} />
+              <Stop offset="100%" stopColor={PAINT.inkMute} stopOpacity={0.02} />
             </LinearGradient>
+            {series.map((s, si) => (
+              <LinearGradient key={si} id={`og${si}`} x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0%" stopColor={s.color} stopOpacity={0.4} />
+                <Stop offset="100%" stopColor={s.color} stopOpacity={0.03} />
+              </LinearGradient>
+            ))}
+          </Defs>
+
+          <GridAndAxes maxVal={maxVal} labels={MONTH_SHORT} highlightIndex={selected} />
+
+          {totalArea ? <Path d={totalArea} fill="url(#tg)" /> : null}
+          {totalLine ? (
+            <Path
+              d={totalLine}
+              stroke={PAINT.inkMute}
+              strokeWidth={1.5}
+              strokeDasharray="4,3"
+              fill="none"
+            />
+          ) : null}
+          {totalPts.map((pt, i) => (
+            <Circle
+              key={i}
+              cx={pt.x}
+              cy={pt.y}
+              r={selected === i ? 3 : 2}
+              fill={PAINT.inkMute}
+            />
           ))}
-        </Defs>
 
-        <GridAndAxes maxVal={maxVal} />
-
-        {/* Total background */}
-        {totalArea ? <Path d={totalArea} fill="url(#tg)" /> : null}
-        {totalLine ? (
-          <Path
-            d={totalLine}
-            stroke={PAINT.inkMute}
-            strokeWidth={1.5}
-            strokeDasharray="4,3"
-            fill="none"
-          />
-        ) : null}
-        {totalPts.map((pt, i) => (
-          <Circle key={i} cx={pt.x} cy={pt.y} r={2} fill={PAINT.inkMute} />
-        ))}
-
-        {/* Each annotated series — draw back-to-front so prominent lines appear on top */}
-        {[...series].reverse().map((s, ri) => {
-          const si = series.length - 1 - ri;
-          const pts = monthlyToPoints(s.monthData, maxVal);
-          const line = buildPath(pts);
-          const area = buildArea(line, pts);
-          return (
-            <React.Fragment key={si}>
-              {area ? <Path d={area} fill={`url(#og${si})`} /> : null}
-              {line ? (
-                <Path
-                  d={line}
-                  stroke={s.color}
-                  strokeWidth={2.5}
-                  fill="none"
-                  strokeLinecap="round"
-                />
-              ) : null}
-              {pts.map((pt, i) => (
-                <Circle key={i} cx={pt.x} cy={pt.y} r={3} fill={s.color} />
-              ))}
-            </React.Fragment>
-          );
-        })}
-      </Svg>
-
-      {/* Legend */}
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendSwatch, { backgroundColor: PAINT.inkMute }]} />
-          <Text style={styles.legendLabel}>Total</Text>
-        </View>
-        {series.map((s, i) => (
-          <View key={i} style={styles.legendItem}>
-            <View style={[styles.legendSwatch, { backgroundColor: s.color }]} />
-            <Text style={styles.legendLabel}>{s.label}</Text>
-          </View>
-        ))}
+          {[...series].reverse().map((s, ri) => {
+            const si = series.length - 1 - ri;
+            const pts = monthlyToPoints(s.monthData, maxVal);
+            const line = buildPath(pts);
+            const area = buildArea(line, pts);
+            return (
+              <React.Fragment key={si}>
+                {area ? <Path d={area} fill={`url(#og${si})`} /> : null}
+                {line ? (
+                  <Path
+                    d={line}
+                    stroke={s.color}
+                    strokeWidth={2.5}
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                ) : null}
+                {pts.map((pt, i) => (
+                  <Circle
+                    key={i}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={selected === i ? 5 : 3}
+                    fill={selected === i ? PAINT.ink : s.color}
+                    stroke={selected === i ? s.color : "none"}
+                    strokeWidth={selected === i ? 2 : 0}
+                  />
+                ))}
+              </React.Fragment>
+            );
+          })}
+        </Svg>
+        <TouchOverlay count={12} selected={selected} onSelect={onSelect} />
       </View>
+
+      <Tooltip
+        show={selected !== null}
+        title={selected !== null ? MONTH_FULL[selected] : ""}
+        rows={tooltipRows}
+      />
+
+      {selected === null ? (
+        <View style={styles.legend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendSwatch, { backgroundColor: PAINT.inkMute }]} />
+            <Text style={styles.legendLabel}>Total</Text>
+          </View>
+          {series.map((s, i) => (
+            <View key={i} style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: s.color }]} />
+              <Text style={styles.legendLabel}>{s.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -562,6 +775,57 @@ const styles = StyleSheet.create({
     fontFamily: LABEL_FONT,
     fontSize: 13,
     color: PAINT.inkMute,
+  },
+  touchOverlay: {
+    position: "absolute",
+    top: 0,
+    flexDirection: "row",
+  },
+  hintRow: {
+    marginTop: 6,
+    alignItems: "center",
+  },
+  hintText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 11,
+    color: PAINT.inkMute,
+    fontStyle: "italic",
+  },
+  tooltip: {
+    marginTop: 8,
+    padding: 10,
+    borderWidth: 1.5,
+    borderColor: PAINT.ink,
+    borderRadius: 10,
+    backgroundColor: PAINT.cream,
+    gap: 6,
+  },
+  tooltipTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 16,
+    color: PAINT.ink,
+  },
+  tooltipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  tooltipDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 2,
+    backgroundColor: "transparent",
+  },
+  tooltipLabel: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.ink,
+    flex: 1,
+  },
+  tooltipValue: {
+    fontFamily: HAND_FONT,
+    fontSize: 14,
+    color: PAINT.ink,
   },
   legend: {
     flexDirection: "row",

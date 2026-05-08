@@ -167,6 +167,7 @@ export async function fetchObservationHistogram(
       radius: radiusKm,
       date_field: "observed",
       interval: "month",
+      verifiable: true,
     });
     // Unwrap nested "month" key so callers get a flat date->count map
     return { results: data.results?.month || {} };
@@ -224,6 +225,7 @@ export async function fetchSeasonalityData(
       taxon_id: taxonId,
       date_field: "observed",
       interval: "month",
+      verifiable: true,
     });
     // API returns results.month["YYYY-MM-DD"] -> number
     const inner = data.results?.month || {};
@@ -252,6 +254,7 @@ export async function fetchYearlyHistogram(
       taxon_id: taxonId,
       date_field: "observed",
       interval: "year",
+      verifiable: true,
     });
     // API returns results.year["YYYY-01-01"] -> number
     const inner = data.results?.year || {};
@@ -285,6 +288,7 @@ async function fetchMonthlyForAnnotation(
       interval: "month",
       term_id: termId,
       term_value_id: termValueId,
+      verifiable: true,
     });
     const inner = data.results?.month || {};
     const monthly: Record<number, number> = {};
