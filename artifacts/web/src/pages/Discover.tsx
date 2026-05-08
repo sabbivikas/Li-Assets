@@ -27,7 +27,7 @@ function LocationPrompt({ onAllow, onSkip }: { onAllow: () => void; onSkip: () =
           What's living near <span className="text-primary">you?</span>
         </h1>
         <p className="font-body text-lg text-muted-foreground mb-8 leading-relaxed">
-          Natura uses your location to show the real birds, plants, insects, and fungi sharing your neighborhood — powered by live iNaturalist data.
+          Natura uses your location to show the real birds, plants, insects, and fungi sharing your neighborhood.
         </p>
 
         <div className="space-y-3">
