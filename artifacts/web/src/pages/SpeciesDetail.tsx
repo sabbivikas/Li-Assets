@@ -11,7 +11,8 @@ import { motion } from "framer-motion";
 export default function SpeciesDetail() {
   const [, params] = useRoute("/species/:id");
   const id = Number(params?.id);
-  const { lat, lng, ready } = useLocation();
+  const { status, lat, lng } = useLocation();
+  const hasLocation = (status === "granted" || status === "denied") && lat !== null && lng !== null;
 
   const { data: taxon, isLoading: isTaxonLoading } = useQuery({
     queryKey: ["taxon", id],
@@ -21,8 +22,8 @@ export default function SpeciesDetail() {
 
   const { data: histogram, isLoading: isHistLoading } = useQuery({
     queryKey: ["histogram", id, lat, lng],
-    queryFn: () => fetchHistogram(id, lat, lng),
-    enabled: !!id && ready,
+    queryFn: () => fetchHistogram(id, lat!, lng!),
+    enabled: !!id && hasLocation,
   });
 
   if (isTaxonLoading) {

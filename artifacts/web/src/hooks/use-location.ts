@@ -1,31 +1,73 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
-const YOSEMITE_LAT = 37.7459;
-const YOSEMITE_LNG = -119.5332;
+export type LocationStatus = 'idle' | 'requesting' | 'granted' | 'denied';
 
-export function useLocation() {
-  const [lat, setLat] = useState(YOSEMITE_LAT);
-  const [lng, setLng] = useState(YOSEMITE_LNG);
-  const [denied, setDenied] = useState(false);
-  const [upgraded, setUpgraded] = useState(false);
+const FALLBACK_LAT = 37.7459;
+const FALLBACK_LNG = -119.5332;
+const FALLBACK_NAME = 'Yosemite Valley';
 
-  useEffect(() => {
+export interface LocationState {
+  status: LocationStatus;
+  lat: number | null;
+  lng: number | null;
+  placeName: string | null;
+  request: () => void;
+  useFallback: () => void;
+}
+
+export function useLocation(): LocationState {
+  const [status, setStatus] = useState<LocationStatus>('idle');
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [placeName, setPlaceName] = useState<string | null>(null);
+
+  const request = useCallback(() => {
     if (!navigator.geolocation) {
-      setDenied(true);
+      setLat(FALLBACK_LAT);
+      setLng(FALLBACK_LNG);
+      setPlaceName(FALLBACK_NAME);
+      setStatus('denied');
       return;
     }
+    setStatus('requesting');
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLat(pos.coords.latitude);
-        setLng(pos.coords.longitude);
-        setUpgraded(true);
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setLat(latitude);
+        setLng(longitude);
+        setStatus('granted');
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          );
+          const data = await res.json();
+          const city =
+            data?.address?.city ||
+            data?.address?.town ||
+            data?.address?.village ||
+            data?.address?.county ||
+            data?.address?.state;
+          if (city) setPlaceName(city);
+        } catch {
+          // silently ignore reverse geocode failure
+        }
       },
       () => {
-        setDenied(true);
+        setLat(FALLBACK_LAT);
+        setLng(FALLBACK_LNG);
+        setPlaceName(FALLBACK_NAME);
+        setStatus('denied');
       },
-      { timeout: 8000 }
+      { timeout: 10000, enableHighAccuracy: false }
     );
   }, []);
 
-  return { lat, lng, denied, upgraded, ready: true };
+  const useFallback = useCallback(() => {
+    setLat(FALLBACK_LAT);
+    setLng(FALLBACK_LNG);
+    setPlaceName(FALLBACK_NAME);
+    setStatus('denied');
+  }, []);
+
+  return { status, lat, lng, placeName, request, useFallback };
 }

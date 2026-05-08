@@ -7,18 +7,19 @@ import { motion } from "framer-motion";
 import { TrendingUp, Sparkles, AlertTriangle } from "lucide-react";
 
 export default function Signals() {
-  const { lat, lng, ready } = useLocation();
+  const { status, lat, lng } = useLocation();
+  const hasLocation = (status === "granted" || status === "denied") && lat !== null && lng !== null;
 
   const { data: current, isLoading: isCurLoading } = useQuery({
     queryKey: ["species-cur", lat, lng],
-    queryFn: () => fetchCurrentYearSpecies(lat, lng),
-    enabled: ready,
+    queryFn: () => fetchCurrentYearSpecies(lat!, lng!),
+    enabled: hasLocation,
   });
 
   const { data: prior, isLoading: isPriorLoading } = useQuery({
     queryKey: ["species-prior", lat, lng],
-    queryFn: () => fetchPriorYearSpecies(lat, lng),
-    enabled: ready,
+    queryFn: () => fetchPriorYearSpecies(lat!, lng!),
+    enabled: hasLocation,
   });
 
   const isLoading = isCurLoading || isPriorLoading;
