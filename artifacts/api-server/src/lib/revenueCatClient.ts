@@ -1,9 +1,14 @@
 // Replit RevenueCat integration: server-side authenticated client.
 // Tokens are short-lived; never cache the client.
 import { createClient } from "@replit/revenuecat-sdk/client";
-import { listCustomerActiveEntitlements } from "@replit/revenuecat-sdk";
+import {
+  listCustomerActiveEntitlements,
+  listEntitlements,
+} from "@replit/revenuecat-sdk";
 
 import { logger } from "./logger.js";
+
+const SUPPORTER_ENTITLEMENT_LOOKUP_KEY = "supporter";
 
 let connectionSettings:
   | {
@@ -61,6 +66,7 @@ async function getRevenueCatClient() {
 }
 
 const ENTITLEMENT_TTL_MS = 60_000;
+const SUPPORTER_ID_TTL_MS = 10 * 60_000;
 
 export type SupporterStatus = "supporter" | "not_supporter" | "unknown";
 
@@ -69,6 +75,47 @@ interface CacheEntry {
   expiresAt: number;
 }
 const entitlementCache = new Map<string, CacheEntry>();
+
+interface SupporterIdCache {
+  id: string | null; // null = lookup ran but key not found in this project
+  expiresAt: number;
+}
+let supporterIdCache: SupporterIdCache | null = null;
+
+/**
+ * Resolves the RevenueCat internal entitlement_id for our "supporter" lookup_key.
+ * Cached for 10 minutes. Returns null if the lookup ran but the key is missing
+ * (project misconfigured), or throws if RC was unreachable.
+ */
+async function getSupporterEntitlementId(
+  client: ReturnType<typeof createClient>,
+  projectId: string,
+): Promise<string | null> {
+  const now = Date.now();
+  if (supporterIdCache && supporterIdCache.expiresAt > now) {
+    return supporterIdCache.id;
+  }
+  const { data, error } = await listEntitlements({
+    client,
+    path: { project_id: projectId },
+    query: { limit: 50 },
+  });
+  if (error) throw error;
+  const match = data?.items?.find(
+    (e) => e.lookup_key === SUPPORTER_ENTITLEMENT_LOOKUP_KEY,
+  );
+  supporterIdCache = {
+    id: match?.id ?? null,
+    expiresAt: now + SUPPORTER_ID_TTL_MS,
+  };
+  if (!match) {
+    logger.warn(
+      { lookupKey: SUPPORTER_ENTITLEMENT_LOOKUP_KEY, projectId },
+      "supporter entitlement lookup_key not found in RevenueCat project",
+    );
+  }
+  return supporterIdCache.id;
+}
 
 /**
  * Resolves the supporter status for the given app_user_id (Clerk userId).
@@ -99,10 +146,18 @@ export async function getSupporterStatus(
 
   try {
     const client = await getRevenueCatClient();
+    const projectId = process.env.REVENUECAT_PROJECT_ID;
+
+    // Resolve the supporter entitlement_id (cached). If the lookup_key isn't
+    // found in this project, fail closed with "unknown" so paid features stay
+    // gated until config is corrected.
+    const supporterId = await getSupporterEntitlementId(client, projectId);
+    if (!supporterId) return setCache("unknown", 30_000);
+
     const { data, error } = await listCustomerActiveEntitlements({
       client,
       path: {
-        project_id: process.env.REVENUECAT_PROJECT_ID,
+        project_id: projectId,
         customer_id: appUserId,
       },
       query: { limit: 50 },
@@ -119,9 +174,12 @@ export async function getSupporterStatus(
       // Cache "unknown" briefly to avoid hammering RC during an outage.
       return setCache("unknown", 15_000);
     }
-    // The "supporter" entitlement is the only one we provision in this project,
-    // so any active entitlement on the customer means they have supporter access.
-    return setCache((data?.items?.length ?? 0) > 0 ? "supporter" : "not_supporter");
+    // Explicitly require the supporter entitlement_id; any other active
+    // entitlement (future tiers, A/B grants, etc.) does NOT bypass the cap.
+    const hasSupporter = (data?.items ?? []).some(
+      (e) => e.entitlement_id === supporterId,
+    );
+    return setCache(hasSupporter ? "supporter" : "not_supporter");
   } catch (err) {
     logger.warn({ err, appUserId }, "revenuecat entitlement check threw");
     return setCache("unknown", 15_000);

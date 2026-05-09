@@ -15,6 +15,45 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 
 export const SUPPORTER_ENTITLEMENT = "supporter";
 
+export type SupporterTierId = "supporter" | "sustainer" | "patron";
+export type SupporterCadence = "monthly" | "yearly";
+
+export interface SupporterTier {
+  id: SupporterTierId;
+  label: string;
+  blurb: string;
+  monthlyPriceUSD: number;
+  yearlyPriceUSD: number;
+}
+
+export const SUPPORTER_TIERS: SupporterTier[] = [
+  {
+    id: "supporter",
+    label: "Supporter",
+    blurb: "A friendly hand to keep the lights on.",
+    monthlyPriceUSD: 9.99,
+    yearlyPriceUSD: 99.99,
+  },
+  {
+    id: "sustainer",
+    label: "Sustainer",
+    blurb: "A steady stream that grows the project.",
+    monthlyPriceUSD: 19.99,
+    yearlyPriceUSD: 199.99,
+  },
+  {
+    id: "patron",
+    label: "Patron",
+    blurb: "A generous gift — thank you, truly.",
+    monthlyPriceUSD: 49.99,
+    yearlyPriceUSD: 499.99,
+  },
+];
+
+export function packageIdForTier(tier: SupporterTierId, cadence: SupporterCadence): string {
+  return `${tier}_${cadence}`;
+}
+
 function pickApiKey(): string | null {
   // In a production native build, prefer the platform-specific store key so
   // that builds without a test key still configure RevenueCat correctly.
@@ -61,8 +100,7 @@ interface SupporterContextValue {
   isSupporter: boolean;
   customerInfo: CustomerInfo | null | undefined;
   offering: PurchasesOffering | null;
-  monthlyPackage: PurchasesPackage | null;
-  yearlyPackage: PurchasesPackage | null;
+  findPackage: (tier: SupporterTierId, cadence: SupporterCadence) => PurchasesPackage | null;
   isPurchasing: boolean;
   isRestoring: boolean;
   purchase: (pkg: PurchasesPackage) => Promise<CustomerInfo>;
@@ -78,8 +116,7 @@ const DEFAULT_SUPPORTER_CTX: SupporterContextValue = {
   isSupporter: false,
   customerInfo: null,
   offering: null,
-  monthlyPackage: null,
-  yearlyPackage: null,
+  findPackage: () => null,
   isPurchasing: false,
   isRestoring: false,
   purchase: async () => {
@@ -174,8 +211,19 @@ export function SupporterProvider({
   });
 
   const offering = offeringsQuery.data?.current ?? null;
-  const monthlyPackage = offering?.monthly ?? null;
-  const yearlyPackage = offering?.annual ?? null;
+
+  const findPackage = useMemo(() => {
+    return (tier: SupporterTierId, cadence: SupporterCadence): PurchasesPackage | null => {
+      if (!offering) return null;
+      const wanted = packageIdForTier(tier, cadence);
+      const pkgs = offering.availablePackages ?? [];
+      // Match either by package identifier (custom) or by product store identifier.
+      const match = pkgs.find(
+        (p) => p.identifier === wanted || p.product?.identifier === wanted,
+      );
+      return match ?? null;
+    };
+  }, [offering]);
 
   const isSupporter =
     customerInfoQuery.data?.entitlements.active?.[SUPPORTER_ENTITLEMENT] !== undefined;
@@ -187,8 +235,7 @@ export function SupporterProvider({
       isSupporter,
       customerInfo: customerInfoQuery.data,
       offering,
-      monthlyPackage,
-      yearlyPackage,
+      findPackage,
       isPurchasing: purchaseMutation.isPending,
       isRestoring: restoreMutation.isPending,
       purchase: (pkg) => purchaseMutation.mutateAsync(pkg),
@@ -203,10 +250,9 @@ export function SupporterProvider({
       offering,
       offeringsQuery.isLoading,
       isSupporter,
-      monthlyPackage,
+      findPackage,
       purchaseMutation,
       restoreMutation,
-      yearlyPackage,
     ],
   );
 

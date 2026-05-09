@@ -14,7 +14,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { PurchasesPackage } from "react-native-purchases";
 
 import {
   CrayonUnderline,
@@ -26,7 +25,12 @@ import {
   Sparkle,
   WobbleBox,
 } from "@/components/paint";
-import { useSupporter } from "@/lib/revenuecat";
+import {
+  SUPPORTER_TIERS,
+  type SupporterCadence,
+  type SupporterTierId,
+  useSupporter,
+} from "@/lib/revenuecat";
 
 const PERKS: { icon: keyof typeof Feather.glyphMap; title: string; body: string }[] = [
   {
@@ -51,6 +55,16 @@ const PERKS: { icon: keyof typeof Feather.glyphMap; title: string; body: string 
   },
 ];
 
+const TIER_COLORS: Record<SupporterTierId, string> = {
+  supporter: PAINT.sky,
+  sustainer: PAINT.grass,
+  patron: PAINT.pink,
+};
+
+function formatPrice(amountUSD: number): string {
+  return `$${amountUSD.toFixed(2)}`;
+}
+
 export default function SupportScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -58,21 +72,20 @@ export default function SupportScreen() {
     available,
     ready,
     isSupporter,
-    monthlyPackage,
-    yearlyPackage,
+    findPackage,
     purchase,
     restore,
     isPurchasing,
     isRestoring,
   } = useSupporter();
 
-  const [pickedPlan, setPickedPlan] = useState<"monthly" | "yearly">("yearly");
+  const [pickedTier, setPickedTier] = useState<SupporterTierId>("supporter");
+  const [cadence, setCadence] = useState<SupporterCadence>("yearly");
   const [thanks, setThanks] = useState(false);
 
   const handlePurchase = async () => {
     if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const pkg: PurchasesPackage | null =
-      pickedPlan === "monthly" ? monthlyPackage : yearlyPackage;
+    const pkg = findPackage(pickedTier, cadence);
     if (!pkg) {
       Alert.alert(
         "Plan unavailable",
@@ -188,8 +201,8 @@ export default function SupportScreen() {
         <Text style={styles.h1}>Support Natura</Text>
         <CrayonUnderline width={200} color={PAINT.pink} seed={11} />
         <Text style={styles.lede}>
-          Natura stays free for everyone. If it's been useful to you,
-          consider chipping in — it covers the AI reports and keeps the lights on.
+          Natura stays free for everyone. Pick the level that feels right —
+          every tier unlocks the same thank-you perks below.
         </Text>
 
         {/* Perks card */}
@@ -216,38 +229,53 @@ export default function SupportScreen() {
           </View>
         </WobbleBox>
 
-        {/* Plan picker */}
-        <Text style={styles.sectionLabel}>choose an amount</Text>
-        <View style={styles.plans}>
-          <PlanCard
+        {/* Cadence toggle */}
+        <Text style={styles.sectionLabel}>billing</Text>
+        <View style={styles.cadenceRow}>
+          <CadenceTab
             label="Monthly"
-            price={
-              monthlyPackage?.product?.priceString ??
-              (available && ready ? "—" : "loading…")
-            }
-            cadence="every month"
-            picked={pickedPlan === "monthly"}
-            onPick={() => {
+            active={cadence === "monthly"}
+            onPress={() => {
               if (Platform.OS !== "web") void Haptics.selectionAsync();
-              setPickedPlan("monthly");
+              setCadence("monthly");
             }}
-            color={PAINT.sky}
           />
-          <PlanCard
+          <CadenceTab
             label="Yearly"
-            price={
-              yearlyPackage?.product?.priceString ??
-              (available && ready ? "—" : "loading…")
-            }
-            cadence="every year"
-            picked={pickedPlan === "yearly"}
-            onPick={() => {
+            active={cadence === "yearly"}
+            ribbon="Save 17%"
+            onPress={() => {
               if (Platform.OS !== "web") void Haptics.selectionAsync();
-              setPickedPlan("yearly");
+              setCadence("yearly");
             }}
-            color={PAINT.grass}
-            ribbon="Save 33%"
           />
+        </View>
+
+        {/* Tier picker */}
+        <Text style={styles.sectionLabel}>choose your level</Text>
+        <View style={styles.tiers}>
+          {SUPPORTER_TIERS.map((t) => {
+            const pkg = findPackage(t.id, cadence);
+            const fallbackUSD =
+              cadence === "monthly" ? t.monthlyPriceUSD : t.yearlyPriceUSD;
+            const priceLabel = pkg?.product?.priceString
+              ?? (available && ready ? formatPrice(fallbackUSD) : "loading…");
+            return (
+              <TierCard
+                key={t.id}
+                label={t.label}
+                blurb={t.blurb}
+                price={priceLabel}
+                cadence={cadence === "monthly" ? "every month" : "every year"}
+                picked={pickedTier === t.id}
+                color={TIER_COLORS[t.id]}
+                onPick={() => {
+                  if (Platform.OS !== "web") void Haptics.selectionAsync();
+                  setPickedTier(t.id);
+                }}
+              />
+            );
+          })}
         </View>
 
         {!available && (
@@ -342,53 +370,84 @@ function BackBar({ onBack }: { onBack: () => void }) {
   );
 }
 
-function PlanCard({
+function CadenceTab({
   label,
+  active,
+  ribbon,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  ribbon?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={{ flex: 1 }}>
+      <WobbleBox
+        width={172}
+        height={52}
+        fill={active ? PAINT.sun + "66" : "white"}
+        stroke={active ? PAINT.ink : PAINT.inkMute}
+        strokeWidth={active ? 2.5 : 1.5}
+        seed={active ? 41 : 43}
+        padding={0}
+      >
+        <View style={styles.cadenceInner}>
+          <Text style={styles.cadenceLabel}>{label}</Text>
+          {ribbon && (
+            <View style={styles.ribbon}>
+              <Text style={styles.ribbonText}>{ribbon}</Text>
+            </View>
+          )}
+        </View>
+      </WobbleBox>
+    </Pressable>
+  );
+}
+
+function TierCard({
+  label,
+  blurb,
   price,
   cadence,
   picked,
   onPick,
   color,
-  ribbon,
 }: {
   label: string;
+  blurb: string;
   price: string;
   cadence: string;
   picked: boolean;
   onPick: () => void;
   color: string;
-  ribbon?: string;
 }) {
   return (
-    <Pressable onPress={onPick} style={{ flex: 1 }}>
+    <Pressable onPress={onPick} style={{ alignSelf: "stretch" }}>
       <WobbleBox
-        width={172}
-        height={140}
+        width={358}
+        height={96}
         fill={picked ? color + "55" : "white"}
         stroke={picked ? PAINT.ink : PAINT.inkMute}
         strokeWidth={picked ? 3 : 1.5}
         seed={picked ? 71 : 73}
         padding={14}
       >
-        <View style={{ flex: 1, justifyContent: "space-between" }}>
-          <View>
-            <Text style={styles.planLabel}>{label}</Text>
-            <Text style={styles.planPrice}>{price}</Text>
-            <Text style={styles.planCadence}>{cadence}</Text>
+        <View style={styles.tierInner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tierLabel}>{label}</Text>
+            <Text style={styles.tierBlurb}>{blurb}</Text>
           </View>
-          {ribbon ? (
-            <View style={styles.ribbon}>
-              <Text style={styles.ribbonText}>{ribbon}</Text>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.tierPrice}>{price}</Text>
+            <Text style={styles.tierCadence}>{cadence}</Text>
+          </View>
+          {picked && (
+            <View style={styles.pickedDot}>
+              <Feather name="check" size={12} color="white" />
             </View>
-          ) : (
-            <View style={{ height: 22 }} />
           )}
         </View>
-        {picked && (
-          <View style={styles.pickedDot}>
-            <Feather name="check" size={12} color="white" />
-          </View>
-        )}
       </WobbleBox>
     </Pressable>
   );
@@ -463,28 +522,50 @@ const styles = StyleSheet.create({
     marginTop: 22,
     marginBottom: 8,
   },
-  plans: { flexDirection: "row", gap: 14, alignSelf: "stretch" },
-  planLabel: {
-    fontFamily: LABEL_FONT,
-    fontSize: 14,
-    color: PAINT.inkMute,
-    letterSpacing: 1,
-    textTransform: "uppercase",
+
+  cadenceRow: { flexDirection: "row", gap: 14, alignSelf: "stretch" },
+  cadenceInner: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
-  planPrice: {
+  cadenceLabel: { fontFamily: HAND_FONT, fontSize: 22, color: PAINT.ink },
+
+  tiers: { gap: 12, alignSelf: "stretch" },
+  tierInner: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  tierLabel: {
     fontFamily: HAND_FONT,
-    fontSize: 32,
+    fontSize: 24,
     color: PAINT.ink,
-    lineHeight: 36,
-    marginTop: 4,
+    lineHeight: 28,
   },
-  planCadence: {
+  tierBlurb: {
     fontFamily: LABEL_FONT,
     fontSize: 13,
     color: PAINT.inkSoft,
+    lineHeight: 17,
+    marginTop: 2,
   },
+  tierPrice: {
+    fontFamily: HAND_FONT,
+    fontSize: 26,
+    color: PAINT.ink,
+    lineHeight: 30,
+  },
+  tierCadence: {
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.inkSoft,
+  },
+
   ribbon: {
-    alignSelf: "flex-start",
     backgroundColor: PAINT.sun,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -492,11 +573,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: PAINT.ink,
   },
-  ribbonText: { fontFamily: HAND_FONT, fontSize: 14, color: PAINT.ink },
+  ribbonText: { fontFamily: HAND_FONT, fontSize: 13, color: PAINT.ink },
+
   pickedDot: {
     position: "absolute",
-    top: 8,
-    right: 8,
+    top: 6,
+    right: 6,
     width: 22,
     height: 22,
     borderRadius: 11,

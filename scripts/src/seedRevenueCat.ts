@@ -45,33 +45,50 @@ interface PlanSpec {
   displayName: string;
   userFacingTitle: string;
   duration: "P1M" | "P1Y";
-  packageIdentifier: "$rc_monthly" | "$rc_annual";
+  packageIdentifier: string;
   packageDisplayName: string;
   prices: { amount_micros: number; currency: string }[];
 }
 
-const PLANS: PlanSpec[] = [
-  {
-    productIdentifier: "natura_supporter_monthly",
-    playStoreProductIdentifier: "natura_supporter_monthly:monthly",
-    displayName: "Natura Supporter — Monthly",
-    userFacingTitle: "Monthly Supporter",
-    duration: "P1M",
-    packageIdentifier: "$rc_monthly",
-    packageDisplayName: "Monthly Support",
-    prices: [{ amount_micros: 9_990_000, currency: "USD" }],
-  },
-  {
-    productIdentifier: "natura_supporter_yearly",
-    playStoreProductIdentifier: "natura_supporter_yearly:yearly",
-    displayName: "Natura Supporter — Yearly",
-    userFacingTitle: "Yearly Supporter",
-    duration: "P1Y",
-    packageIdentifier: "$rc_annual",
-    packageDisplayName: "Yearly Support",
-    prices: [{ amount_micros: 79_990_000, currency: "USD" }],
-  },
+function dollarsToMicros(usd: number): number {
+  return Math.round(usd * 1_000_000);
+}
+
+interface TierSpec {
+  id: "supporter" | "sustainer" | "patron";
+  label: string;
+  monthlyUSD: number;
+  yearlyUSD: number;
+}
+
+const TIERS: TierSpec[] = [
+  { id: "supporter", label: "Supporter", monthlyUSD: 9.99, yearlyUSD: 99.99 },
+  { id: "sustainer", label: "Sustainer", monthlyUSD: 19.99, yearlyUSD: 199.99 },
+  { id: "patron", label: "Patron", monthlyUSD: 49.99, yearlyUSD: 499.99 },
 ];
+
+const PLANS: PlanSpec[] = TIERS.flatMap((t) => [
+  {
+    productIdentifier: `${t.id}_monthly`,
+    playStoreProductIdentifier: `${t.id}_monthly:monthly`,
+    displayName: `Natura ${t.label} — Monthly`,
+    userFacingTitle: `${t.label} (Monthly)`,
+    duration: "P1M" as const,
+    packageIdentifier: `${t.id}_monthly`,
+    packageDisplayName: `${t.label} — Monthly`,
+    prices: [{ amount_micros: dollarsToMicros(t.monthlyUSD), currency: "USD" }],
+  },
+  {
+    productIdentifier: `${t.id}_yearly`,
+    playStoreProductIdentifier: `${t.id}_yearly:yearly`,
+    displayName: `Natura ${t.label} — Yearly`,
+    userFacingTitle: `${t.label} (Yearly)`,
+    duration: "P1Y" as const,
+    packageIdentifier: `${t.id}_yearly`,
+    packageDisplayName: `${t.label} — Yearly`,
+    prices: [{ amount_micros: dollarsToMicros(t.yearlyUSD), currency: "USD" }],
+  },
+]);
 
 type TestStorePricesResponse = {
   object: string;
