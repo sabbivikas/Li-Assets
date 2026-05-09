@@ -247,8 +247,8 @@ export default function SupportScreen() {
           <View style={styles.rdCallout}>
             <Feather name="activity" size={15} color={PAINT.grassDeep} />
             <Text style={styles.rdText}>
-              Your annual subscription goes directly to field research, new species
-              datasets, and AI model improvements — not just server costs.
+              Annual plans cover AI report costs, servers, and the ongoing work of
+              testing better models and data sources to make Natura more useful.
             </Text>
           </View>
         )}
