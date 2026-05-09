@@ -36,12 +36,12 @@ const PERKS: { icon: keyof typeof Feather.glyphMap; title: string; body: string 
   {
     icon: "heart",
     title: "Keep Natura free for everyone",
-    body: "Your support pays for the AI civic reports and the servers that bring them to life.",
+    body: "Your support pays for AI civic reports and the servers that bring them to life.",
   },
   {
     icon: "edit-3",
     title: "Unlimited AI reports",
-    body: "Free naturalists get 5 AI reports a month — supporters get as many as they want.",
+    body: "Free naturalists get 5 reports a month — supporters get as many as they want.",
   },
   {
     icon: "feather",
@@ -51,7 +51,7 @@ const PERKS: { icon: keyof typeof Feather.glyphMap; title: string; body: string 
   {
     icon: "moon",
     title: "Custom paper themes",
-    body: "Switch the field-notebook colors to Forest or Dusk whenever you fancy a change.",
+    body: "Switch field-notebook colors to Forest or Dusk whenever you fancy a change.",
   },
 ];
 
@@ -63,6 +63,10 @@ const TIER_COLORS: Record<SupporterTierId, string> = {
 
 function formatPrice(amountUSD: number): string {
   return `$${amountUSD.toFixed(2)}`;
+}
+
+function monthlyEquiv(yearlyUSD: number): string {
+  return `$${(yearlyUSD / 12).toFixed(2)} / mo`;
 }
 
 export default function SupportScreen() {
@@ -82,6 +86,8 @@ export default function SupportScreen() {
   const [pickedTier, setPickedTier] = useState<SupporterTierId>("supporter");
   const [cadence, setCadence] = useState<SupporterCadence>("yearly");
   const [thanks, setThanks] = useState(false);
+
+  const pickedTierData = SUPPORTER_TIERS.find((t) => t.id === pickedTier)!;
 
   const handlePurchase = async () => {
     if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -128,7 +134,7 @@ export default function SupportScreen() {
     }
   };
 
-  // SUCCESS / THANK-YOU STATE
+  // ── SUCCESS / THANK-YOU STATE ────────────────────────────────────────────────
   if (thanks || isSupporter) {
     return (
       <View style={styles.root}>
@@ -161,13 +167,7 @@ export default function SupportScreen() {
               onPress={() => router.back()}
               style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1, marginTop: 26 }]}
             >
-              <WobbleBox
-                width={220}
-                height={54}
-                fill={PAINT.grass}
-                seed={9}
-                padding={0}
-              >
+              <WobbleBox width={220} height={54} fill={PAINT.grass} seed={9} padding={0}>
                 <View style={styles.primaryInner}>
                   <Text style={styles.primaryLabel}>back to the journal</Text>
                 </View>
@@ -179,7 +179,7 @@ export default function SupportScreen() {
     );
   }
 
-  // OFFER STATE
+  // ── OFFER STATE ──────────────────────────────────────────────────────────────
   return (
     <View style={styles.root}>
       <PaperBackground />
@@ -205,31 +205,22 @@ export default function SupportScreen() {
           every tier unlocks the same thank-you perks below.
         </Text>
 
-        {/* Perks card */}
-        <WobbleBox
-          width={358}
-          height={286}
-          fill={PAINT.cream}
-          seed={31}
-          padding={18}
-          style={{ marginTop: 18 }}
-        >
-          <View style={{ gap: 14 }}>
-            {PERKS.map((p) => (
-              <View key={p.title} style={styles.perkRow}>
-                <View style={styles.perkIcon}>
-                  <Feather name={p.icon} size={16} color={PAINT.ink} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.perkTitle}>{p.title}</Text>
-                  <Text style={styles.perkBody}>{p.body}</Text>
-                </View>
+        {/* ── Perks card (auto-height) ── */}
+        <View style={styles.perksCard}>
+          {PERKS.map((p) => (
+            <View key={p.title} style={styles.perkRow}>
+              <View style={styles.perkIcon}>
+                <Feather name={p.icon} size={16} color={PAINT.ink} />
               </View>
-            ))}
-          </View>
-        </WobbleBox>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.perkTitle}>{p.title}</Text>
+                <Text style={styles.perkBody}>{p.body}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
 
-        {/* Cadence toggle */}
+        {/* ── Cadence toggle ── */}
         <Text style={styles.sectionLabel}>billing</Text>
         <View style={styles.cadenceRow}>
           <CadenceTab
@@ -251,7 +242,18 @@ export default function SupportScreen() {
           />
         </View>
 
-        {/* Tier picker */}
+        {/* ── Yearly R&D callout ── */}
+        {cadence === "yearly" && (
+          <View style={styles.rdCallout}>
+            <Feather name="activity" size={15} color={PAINT.grassDeep} />
+            <Text style={styles.rdText}>
+              Your annual subscription goes directly to field research, new species
+              datasets, and AI model improvements — not just server costs.
+            </Text>
+          </View>
+        )}
+
+        {/* ── Tier picker ── */}
         <Text style={styles.sectionLabel}>choose your level</Text>
         <View style={styles.tiers}>
           {SUPPORTER_TIERS.map((t) => {
@@ -259,14 +261,20 @@ export default function SupportScreen() {
             const fallbackUSD =
               cadence === "monthly" ? t.monthlyPriceUSD : t.yearlyPriceUSD;
             const priceLabel = pkg?.product?.priceString
-              ?? (available && ready ? formatPrice(fallbackUSD) : "loading…");
+              ?? (available && ready ? formatPrice(fallbackUSD) : "—");
+            const perMonthLabel = cadence === "yearly"
+              ? (pkg?.product
+                  ? monthlyEquiv(pkg.product.price)
+                  : monthlyEquiv(t.yearlyPriceUSD))
+              : null;
             return (
               <TierCard
                 key={t.id}
                 label={t.label}
                 blurb={t.blurb}
                 price={priceLabel}
-                cadence={cadence === "monthly" ? "every month" : "every year"}
+                cadence={cadence === "monthly" ? "/ month" : "/ year"}
+                perMonth={perMonthLabel}
                 picked={pickedTier === t.id}
                 color={TIER_COLORS[t.id]}
                 onPick={() => {
@@ -288,12 +296,12 @@ export default function SupportScreen() {
           </View>
         )}
 
-        {/* Primary action */}
+        {/* ── Primary CTA ── */}
         <Pressable
           onPress={() => void handlePurchase()}
           disabled={!available || isPurchasing}
           style={({ pressed }) => [
-            { opacity: pressed && !isPurchasing ? 0.85 : 1, marginTop: 20 },
+            { opacity: pressed && !isPurchasing ? 0.85 : 1, marginTop: 24 },
           ]}
         >
           <WobbleBox
@@ -310,7 +318,7 @@ export default function SupportScreen() {
                 <>
                   <Feather name="heart" size={18} color={PAINT.ink} />
                   <Text style={styles.primaryLabel}>
-                    Become a Supporter
+                    Become a {pickedTierData.label}
                   </Text>
                 </>
               )}
@@ -320,10 +328,10 @@ export default function SupportScreen() {
 
         <Text style={styles.fineprint}>
           Cancel anytime in your {Platform.OS === "ios" ? "App Store" : "Google Play"} settings.
-          Your support is recurring until you cancel.
+          Your support renews automatically until cancelled.
         </Text>
 
-        {/* Secondary actions */}
+        {/* ── Secondary actions ── */}
         <View style={styles.secondaryRow}>
           <Pressable
             onPress={() => void handleRestore()}
@@ -393,7 +401,9 @@ function CadenceTab({
         padding={0}
       >
         <View style={styles.cadenceInner}>
-          <Text style={styles.cadenceLabel}>{label}</Text>
+          <Text style={[styles.cadenceLabel, !active && { color: PAINT.inkSoft }]}>
+            {label}
+          </Text>
           {ribbon && (
             <View style={styles.ribbon}>
               <Text style={styles.ribbonText}>{ribbon}</Text>
@@ -410,6 +420,7 @@ function TierCard({
   blurb,
   price,
   cadence,
+  perMonth,
   picked,
   onPick,
   color,
@@ -418,37 +429,44 @@ function TierCard({
   blurb: string;
   price: string;
   cadence: string;
+  perMonth: string | null;
   picked: boolean;
   onPick: () => void;
   color: string;
 }) {
   return (
-    <Pressable onPress={onPick} style={{ alignSelf: "stretch" }}>
-      <WobbleBox
-        width={358}
-        height={96}
-        fill={picked ? color + "55" : "white"}
-        stroke={picked ? PAINT.ink : PAINT.inkMute}
-        strokeWidth={picked ? 3 : 1.5}
-        seed={picked ? 71 : 73}
-        padding={14}
+    <Pressable onPress={onPick} style={styles.tierCardWrap}>
+      <View
+        style={[
+          styles.tierCard,
+          { backgroundColor: picked ? color + "44" : "white" },
+          picked && styles.tierCardPicked,
+        ]}
       >
-        <View style={styles.tierInner}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.tierLabel}>{label}</Text>
-            <Text style={styles.tierBlurb}>{blurb}</Text>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={styles.tierPrice}>{price}</Text>
-            <Text style={styles.tierCadence}>{cadence}</Text>
-          </View>
-          {picked && (
-            <View style={styles.pickedDot}>
-              <Feather name="check" size={12} color="white" />
+        {/* Left: name + blurb */}
+        <View style={styles.tierLeft}>
+          <Text style={styles.tierLabel}>{label}</Text>
+          <Text style={styles.tierBlurb}>{blurb}</Text>
+        </View>
+
+        {/* Right: price stack */}
+        <View style={styles.tierRight}>
+          <Text style={styles.tierPrice}>{price}</Text>
+          <Text style={styles.tierCadence}>{cadence}</Text>
+          {perMonth && (
+            <View style={styles.tierEquivRow}>
+              <Text style={styles.tierEquiv}>{perMonth}</Text>
             </View>
           )}
         </View>
-      </WobbleBox>
+
+        {/* Selected checkmark */}
+        {picked && (
+          <View style={styles.pickedDot}>
+            <Feather name="check" size={12} color="white" />
+          </View>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -491,35 +509,51 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
 
+  // Perks — auto-height, no fixed size
+  perksCard: {
+    alignSelf: "stretch",
+    backgroundColor: PAINT.cream,
+    borderWidth: 2.5,
+    borderColor: PAINT.ink,
+    borderRadius: 18,
+    padding: 18,
+    gap: 16,
+    marginTop: 18,
+  },
   perkRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   perkIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "white",
     borderWidth: 1.5,
     borderColor: PAINT.ink,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
+    marginTop: 1,
   },
-  perkTitle: { fontFamily: HAND_FONT, fontSize: 20, color: PAINT.ink, lineHeight: 24 },
+  perkTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 20,
+    color: PAINT.ink,
+    lineHeight: 24,
+  },
   perkBody: {
     fontFamily: LABEL_FONT,
     fontSize: 14,
     color: PAINT.inkSoft,
-    lineHeight: 18,
-    marginTop: 2,
+    lineHeight: 19,
+    marginTop: 3,
   },
 
   sectionLabel: {
     alignSelf: "flex-start",
     fontFamily: LABEL_FONT,
-    fontSize: 14,
+    fontSize: 13,
     color: PAINT.inkMute,
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    marginTop: 22,
+    marginTop: 24,
     marginBottom: 8,
   },
 
@@ -533,26 +567,71 @@ const styles = StyleSheet.create({
   },
   cadenceLabel: { fontFamily: HAND_FONT, fontSize: 22, color: PAINT.ink },
 
-  tiers: { gap: 12, alignSelf: "stretch" },
-  tierInner: {
+  ribbon: {
+    backgroundColor: PAINT.sun,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: PAINT.ink,
+  },
+  ribbonText: { fontFamily: HAND_FONT, fontSize: 13, color: PAINT.ink },
+
+  // R&D callout
+  rdCallout: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: PAINT.grass + "22",
+    borderWidth: 1.5,
+    borderColor: PAINT.grassDeep,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginTop: 12,
+  },
+  rdText: {
     flex: 1,
+    fontFamily: LABEL_FONT,
+    fontSize: 14,
+    color: PAINT.inkSoft,
+    lineHeight: 20,
+  },
+
+  // Tier cards — auto-height
+  tiers: { gap: 10, alignSelf: "stretch" },
+  tierCardWrap: { alignSelf: "stretch" },
+  tierCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    borderWidth: 2,
+    borderColor: PAINT.inkMute,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    position: "relative",
   },
+  tierCardPicked: {
+    borderColor: PAINT.ink,
+    borderWidth: 2.5,
+  },
+  tierLeft: { flex: 1 },
   tierLabel: {
     fontFamily: HAND_FONT,
-    fontSize: 24,
+    fontSize: 26,
     color: PAINT.ink,
-    lineHeight: 28,
+    lineHeight: 30,
   },
   tierBlurb: {
     fontFamily: LABEL_FONT,
     fontSize: 13,
     color: PAINT.inkSoft,
-    lineHeight: 17,
-    marginTop: 2,
+    lineHeight: 18,
+    marginTop: 3,
   },
+  tierRight: { alignItems: "flex-end", gap: 1 },
   tierPrice: {
     fontFamily: HAND_FONT,
     fontSize: 26,
@@ -564,21 +643,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: PAINT.inkSoft,
   },
-
-  ribbon: {
-    backgroundColor: PAINT.sun,
-    paddingHorizontal: 8,
+  tierEquivRow: {
+    marginTop: 4,
+    backgroundColor: PAINT.sun + "88",
+    borderRadius: 6,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: PAINT.ink,
   },
-  ribbonText: { fontFamily: HAND_FONT, fontSize: 13, color: PAINT.ink },
+  tierEquiv: {
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.ink,
+  },
 
   pickedDot: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: 8,
+    right: 8,
     width: 22,
     height: 22,
     borderRadius: 11,
@@ -615,19 +696,21 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   primaryLabel: { fontFamily: HAND_FONT, fontSize: 24, color: PAINT.ink },
+
   fineprint: {
     fontFamily: LABEL_FONT,
     fontSize: 12,
     color: PAINT.inkMute,
     textAlign: "center",
-    marginTop: 10,
-    lineHeight: 16,
+    marginTop: 12,
+    lineHeight: 17,
+    paddingHorizontal: 8,
   },
   secondaryRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 16,
+    marginTop: 18,
   },
   secondaryDot: { color: PAINT.inkMute, fontSize: 16 },
   secondaryLink: { fontFamily: HAND_FONT, fontSize: 18, color: PAINT.ink },
