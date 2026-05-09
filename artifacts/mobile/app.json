@@ -19,12 +19,17 @@
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Natura uses the camera so you can add a profile photo.",
-        "NSPhotoLibraryUsageDescription": "Natura uses your photo library so you can choose a profile photo."
+        "NSPhotoLibraryUsageDescription": "Natura uses your photo library so you can choose a profile photo.",
+        "NSLocationWhenInUseUsageDescription": "Natura needs your location to find species observed near you."
       }
     },
     "android": {
       "backgroundColor": "#fdf6e3",
-      "package": "com.natura.app"
+      "package": "com.natura.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
