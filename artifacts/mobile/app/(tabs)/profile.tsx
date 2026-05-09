@@ -199,10 +199,34 @@ export default function ProfileScreen() {
     const doSignOut = async () => {
       setBusy(true);
       try {
-        await Promise.all([clearReports(), clearCards(), clearCache()]);
-        await resetOnboarding();
-        await signOut();
-        router.replace("/(auth)/sign-in");
+        // Attempt Clerk sign-out FIRST. If this fails (e.g. network outage),
+        // we must NOT wipe local state — otherwise the user remains signed in
+        // but loses their reports/cards and gets bounced to onboarding.
+        try {
+          await signOut();
+        } catch (err) {
+          if (Platform.OS === "web") {
+            // eslint-disable-next-line no-alert
+            window.alert("Couldn't sign out. Please check your connection and try again.");
+          } else {
+            Alert.alert(
+              "Couldn't sign out",
+              "Please check your connection and try again.",
+            );
+          }
+          // eslint-disable-next-line no-console
+          console.warn("[signOut] failed", err);
+          return;
+        }
+        // Sign-out succeeded — safe to clear local data. Best-effort: if
+        // any of these fail the user is already signed out and the root
+        // layout will reroute to (auth) automatically.
+        await Promise.allSettled([clearReports(), clearCards(), clearCache()]);
+        try {
+          await resetOnboarding();
+        } catch {
+          // ignore — auth state is the source of truth for routing
+        }
       } finally {
         setBusy(false);
       }

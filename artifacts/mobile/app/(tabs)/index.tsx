@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -180,8 +182,46 @@ export default function HomeScreen() {
 
   async function handleUseMyLocation() {
     setRequestingLoc(true);
-    await requestLocation();
-    setRequestingLoc(false);
+    try {
+      // On native, if the user previously denied permission iOS/Android will
+      // NOT re-prompt — requestForegroundPermissionsAsync just returns the
+      // cached "denied" status, making the button feel broken. Detect that
+      // case and route the user to Settings instead.
+      if (Platform.OS !== "web") {
+        const current = await Location.getForegroundPermissionsAsync();
+        if (current.status === "denied" && !current.canAskAgain) {
+          Alert.alert(
+            "Location is off",
+            "Natura needs location access to show wildlife near you. Turn it on in Settings.",
+            [
+              { text: "Not now", style: "cancel" },
+              { text: "Open Settings", onPress: () => void Linking.openSettings() },
+            ],
+          );
+          return;
+        }
+      }
+      const ok = await requestLocation();
+      if (!ok) {
+        if (Platform.OS === "web") {
+          // eslint-disable-next-line no-alert
+          window.alert(
+            "We couldn't read your location. Please allow location access in your browser and try again.",
+          );
+        } else {
+          Alert.alert(
+            "Couldn't get your location",
+            "Please make sure location services are on and try again.",
+            [
+              { text: "OK", style: "cancel" },
+              { text: "Open Settings", onPress: () => void Linking.openSettings() },
+            ],
+          );
+        }
+      }
+    } finally {
+      setRequestingLoc(false);
+    }
   }
 
   const cacheKey = `nearby-${coarsenCoord(lat!)}-${coarsenCoord(lng!)}-${radius}`;

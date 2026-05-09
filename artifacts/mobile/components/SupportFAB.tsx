@@ -11,8 +11,16 @@ import { useSupporter } from "@/lib/revenuecat";
 
 const HIDDEN_PREFIXES = ["/profile", "/support", "/settings"];
 
+// Home tab has a 44px circular compass button at top-right. expo-router's
+// usePathname() strips route groups, so app/(tabs)/index.tsx reports as "/".
+const COMPASS_ROUTES = ["/"];
+
 function isHiddenRoute(pathname: string): boolean {
   return HIDDEN_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
+}
+
+function hasCompassButton(pathname: string): boolean {
+  return COMPASS_ROUTES.includes(pathname);
 }
 
 export function SupportFAB() {
@@ -28,10 +36,14 @@ export function SupportFAB() {
     router.push("/support");
   }
 
+  // Compass button is 44px wide with 20px screen padding; shift the pill
+  // left of it so the two never overlap.
+  const rightOffset = hasCompassButton(pathname) ? 76 : 16;
+
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.wrapper, { top: insets.top + 8, right: 16 }]}
+      style={[styles.wrapper, { top: insets.top + 18, right: rightOffset }]}
     >
       <Pressable
         onPress={handlePress}
