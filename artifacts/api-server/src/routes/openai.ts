@@ -172,18 +172,19 @@ router.post(
     const ctx = parsed.data as GenerateReportRequest;
 
     // Free-tier monthly cap enforcement (server-side source of truth).
-    // Supporters bypass the cap via active "supporter" entitlement.
+    // Supporters bypass the cap via active "supporter" entitlement; everyone
+    // else (including "unknown" when RC is unreachable) is rate-limited.
     // NOTE: counts are kept in-memory and reset on restart — acceptable for the
     // current single-instance deployment. Move to durable storage if scaled out.
     let shouldCountUsage = false;
     let usageKey: string | null = null;
     if (userId !== null) {
       const supporterStatus = await getSupporterStatus(userId);
-      // Only enforce the cap when we're confident the user is NOT a supporter.
-      // If the entitlement check is unavailable, allow the request through —
-      // the worst case is a free user briefly bypassing the cap during an RC
-      // outage, which is far better than blocking real supporters.
-      if (supporterStatus === "not_supporter") {
+      // Fail closed: enforce the cap unless we explicitly confirm the user
+      // is a supporter. Treating "unknown" as not-a-supporter keeps the free
+      // tier honest when RevenueCat is unconfigured/unreachable, which is the
+      // current deployment reality before the seed step has run.
+      if (supporterStatus !== "supporter") {
         usageKey = monthlyKey(userId);
         const used = monthlyReportCount.get(usageKey) ?? 0;
         if (used >= FREE_MONTHLY_REPORT_CAP) {
