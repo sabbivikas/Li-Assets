@@ -88,8 +88,9 @@ function buildLeafletHtml(
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://unpkg.com; style-src 'unsafe-inline' https://unpkg.com; img-src https://*.basemaps.cartocdn.com https://*.inaturalist.org https://inaturalist-open-data.s3.amazonaws.com https://*.staticflickr.com data:; connect-src 'none';" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" integrity="sha256-YU3qCpj/P06tdPBJGPax0bm6Q1wltfwjsho5TR4+TYc=" crossorigin="anonymous" />
 <style>
   html, body, #map { height: 100%; margin: 0; padding: 0; background: #04101F; }
 
@@ -267,8 +268,8 @@ function buildLeafletHtml(
 </head>
 <body>
 <div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" integrity="sha256-Hk4dIpcqOSb0hZjgyvFOP+cEmDXUKKNE/tT542ZbNQg=" crossorigin="anonymous"></script>
 <script>
 (function() {
   var lat = ${lat};
@@ -569,18 +570,51 @@ interface RawMapMessage {
   source?: string;
 }
 
+const MAX_STR = 512;
+
+function safeStr(v: unknown): string | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== "string") return undefined;
+  return v.slice(0, MAX_STR);
+}
+
+function safeInt(v: unknown): number | undefined {
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return undefined;
+  return Math.floor(v);
+}
+
 function isPinPayload(p: unknown): p is PinTapPayload {
-  return (
-    !!p &&
-    typeof p === "object" &&
-    typeof (p as PinTapPayload).id === "number" &&
-    typeof (p as PinTapPayload).name === "string"
-  );
+  if (!p || typeof p !== "object") return false;
+  const o = p as Record<string, unknown>;
+  const id = safeInt(o.id);
+  const name = safeStr(o.name);
+  return id !== undefined && name !== undefined && name.length > 0;
+}
+
+function extractPinPayload(p: unknown): PinTapPayload | null {
+  if (!p || typeof p !== "object") return null;
+  const o = p as Record<string, unknown>;
+  const id = safeInt(o.id);
+  const name = safeStr(o.name);
+  if (id === undefined || !name) return null;
+  return {
+    id,
+    taxonId: safeInt(o.taxonId),
+    name,
+    scientificName: safeStr(o.scientificName),
+    photoUrl: safeStr(o.photoUrl),
+    photoMediumUrl: safeStr(o.photoMediumUrl),
+    role: safeStr(o.role),
+    roleColor: safeStr(o.roleColor),
+    group: safeStr(o.group),
+    recentNearbyCount: safeInt(o.recentNearbyCount),
+  };
 }
 
 function parseMapMessage(raw: unknown): ParsedMessage {
   let m: RawMapMessage | null = null;
   if (typeof raw === "string") {
+    if (raw.length > 65536) return null;
     try {
       m = JSON.parse(raw) as RawMapMessage;
     } catch {
@@ -590,21 +624,35 @@ function parseMapMessage(raw: unknown): ParsedMessage {
     m = raw as RawMapMessage;
   }
   if (!m || typeof m.type !== "string") return null;
-  if (m.type === "userPin" && typeof m.x === "number" && typeof m.y === "number") {
-    return { kind: "userPin", pos: { x: m.x, y: m.y, visible: m.visible !== false } };
+
+  if (m.type === "userPin") {
+    const x = typeof m.x === "number" && Number.isFinite(m.x) ? m.x : null;
+    const y = typeof m.y === "number" && Number.isFinite(m.y) ? m.y : null;
+    if (x === null || y === null) return null;
+    return { kind: "userPin", pos: { x, y, visible: m.visible !== false } };
   }
+
   if (m.type === "mapReady") return { kind: "mapReady" };
-  if (m.type === "pin-tap" && m.source === "lifeweb-map" && m.pin && typeof m.pin.id === "number") {
-    return { kind: "pinTap", pin: m.pin };
+
+  if (m.type === "pin-tap" && m.source === "lifeweb-map") {
+    const pin = extractPinPayload(m.pin);
+    if (!pin) return null;
+    return { kind: "pinTap", pin };
   }
+
   if (
     m.type === "cluster-tap" &&
     m.source === "lifeweb-map" &&
-    Array.isArray(m.pins)
+    Array.isArray(m.pins) &&
+    m.pins.length <= MAX_PIN_POOL
   ) {
-    const pins = m.pins.filter(isPinPayload);
+    const pins = m.pins
+      .slice(0, MAX_PIN_POOL)
+      .map(extractPinPayload)
+      .filter((p): p is PinTapPayload => p !== null && isPinPayload(p));
     if (pins.length > 0) return { kind: "clusterTap", pins };
   }
+
   return null;
 }
 
@@ -738,14 +786,13 @@ export function LocationMap({
         <iframe
           ref={iframeRef}
           srcDoc={html}
+          sandbox="allow-scripts"
           style={{
             width: "100%",
             height: "100%",
             border: "none",
             borderRadius: 20,
           }}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          {...({ allow: "geolocation" } as any)}
         />
         {pinOverlay}
         {emptyOverlay}
@@ -767,6 +814,10 @@ export function LocationMap({
         domStorageEnabled
         androidLayerType="hardware"
         setSupportMultipleWindows={false}
+        onShouldStartLoadWithRequest={(req) => {
+          const { url } = req;
+          return url === "about:blank" || url === "" || url.startsWith("file://");
+        }}
         onMessage={onWebViewMessage}
       />
       {pinOverlay}

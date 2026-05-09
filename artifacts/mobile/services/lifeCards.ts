@@ -1,5 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import {
   getEcosystemRoles,
   getRoleLabel,
@@ -11,6 +9,7 @@ import {
   type INatTaxon,
   type SpeciesCount,
 } from "./iNaturalist";
+import { secureLargeDelete, secureLargeRead, secureLargeWrite } from "./secureStorage";
 
 const KEY = "lifeweb.lifecards.v1";
 const MAX_CARDS = 200;
@@ -73,7 +72,7 @@ export interface LifeCard extends StoredCard {
 
 export async function loadCards(): Promise<StoredCard[]> {
   try {
-    const raw = await AsyncStorage.getItem(KEY);
+    const raw = await secureLargeRead(KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as StoredCard[]) : [];
@@ -83,11 +82,11 @@ export async function loadCards(): Promise<StoredCard[]> {
 }
 
 async function persist(cards: StoredCard[]): Promise<void> {
-  await AsyncStorage.setItem(KEY, JSON.stringify(cards.slice(0, MAX_CARDS)));
+  await secureLargeWrite(KEY, JSON.stringify(cards.slice(0, MAX_CARDS)));
 }
 
 export async function clearCards(): Promise<void> {
-  await AsyncStorage.removeItem(KEY);
+  await secureLargeDelete(KEY);
 }
 
 export function deleteCard(taxonId: number): Promise<StoredCard[]> {

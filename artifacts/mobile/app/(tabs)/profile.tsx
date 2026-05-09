@@ -41,8 +41,9 @@ import {
   computeBadgeStates,
   getFeaturedBadges,
 } from "@/services/badges";
-import { loadCards, type StoredCard } from "@/services/lifeCards";
-import { loadReports, type SavedReport } from "@/services/savedReports";
+import { clearCache } from "@/services/cache";
+import { loadCards, clearCards, type StoredCard } from "@/services/lifeCards";
+import { loadReports, clearReports, type SavedReport } from "@/services/savedReports";
 
 function initialsFor(name: string | null | undefined, email: string | undefined): string {
   const source = (name ?? email ?? "").trim();
@@ -70,6 +71,7 @@ export default function ProfileScreen() {
     setDisplayName,
     localAvatarUri,
     setLocalAvatarUri,
+    resetOnboarding,
   } = useLocation();
   const [busy, setBusy] = useState(false);
   const [cards, setCards] = useState<StoredCard[]>([]);
@@ -197,6 +199,8 @@ export default function ProfileScreen() {
     const doSignOut = async () => {
       setBusy(true);
       try {
+        await Promise.all([clearReports(), clearCards(), clearCache()]);
+        await resetOnboarding();
         await signOut();
         router.replace("/(auth)/sign-in");
       } finally {
@@ -215,7 +219,7 @@ export default function ProfileScreen() {
         ],
       );
     }
-  }, [busy, router, signOut]);
+  }, [busy, resetOnboarding, router, signOut]);
 
   if (!isLoaded) {
     return (

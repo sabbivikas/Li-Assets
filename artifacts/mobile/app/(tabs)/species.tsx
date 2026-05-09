@@ -41,7 +41,7 @@ import {
   getRoleColor,
   getRoleLabel,
 } from "@/services/ecologyModel";
-import { withCache } from "@/services/cache";
+import { coarsenCoord, withCache } from "@/services/cache";
 
 type GroupDef = {
   key: string;
@@ -74,7 +74,7 @@ export default function SpeciesScreen() {
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["nearby-species", lat, lng, radius],
     queryFn: () =>
-      withCache(`nearby-${lat}-${lng}-${radius}`, () =>
+      withCache(`nearby-${coarsenCoord(lat!)}-${coarsenCoord(lng!)}-${radius}`, () =>
         fetchNearbySpecies(lat!, lng!, radius, 100)
       ),
     enabled: !!lat && !!lng,

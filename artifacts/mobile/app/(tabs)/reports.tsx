@@ -33,7 +33,7 @@ import {
   WobbleButton,
 } from "@/components/paint";
 import { useLocation } from "@/context/LocationContext";
-import { withCache } from "@/services/cache";
+import { coarsenCoord, withCache } from "@/services/cache";
 import {
   fetchHistoricalSpecies,
   fetchNearbySpecies,
@@ -135,7 +135,7 @@ export default function ReportsScreen() {
   const { data: nearby, isLoading: nearbyLoading } = useQuery({
     queryKey: ["nearby-species", lat, lng, radius],
     queryFn: () =>
-      withCache(`nearby-${lat}-${lng}-${radius}`, () =>
+      withCache(`nearby-${coarsenCoord(lat!)}-${coarsenCoord(lng!)}-${radius}`, () =>
         fetchNearbySpecies(lat!, lng!, radius, 80)
       ),
     enabled: !!lat && !!lng,
@@ -144,7 +144,7 @@ export default function ReportsScreen() {
   const { data: historical } = useQuery({
     queryKey: ["historical-species", lat, lng, radius],
     queryFn: () =>
-      withCache(`historical-${lat}-${lng}-${radius}`, () =>
+      withCache(`historical-${coarsenCoord(lat!)}-${coarsenCoord(lng!)}-${radius}`, () =>
         fetchHistoricalSpecies(lat!, lng!, radius, 2)
       ),
     enabled: !!lat && !!lng,

@@ -1,10 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
+}
+
+/**
+ * Round a coordinate to 2 decimal places (~1.1 km precision) before
+ * embedding it in a cache key. This prevents exact GPS coordinates from
+ * being written to plain AsyncStorage key names.
+ */
+export function coarsenCoord(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 export async function getCached<T>(key: string): Promise<T | null> {

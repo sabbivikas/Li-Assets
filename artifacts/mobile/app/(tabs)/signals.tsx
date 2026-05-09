@@ -34,7 +34,7 @@ import {
   getIconicGroup,
   type SpeciesCount,
 } from "@/services/iNaturalist";
-import { withCache } from "@/services/cache";
+import { coarsenCoord, withCache } from "@/services/cache";
 
 type SignalType = "declining" | "new" | "increasing";
 
@@ -164,7 +164,7 @@ export default function SignalsScreen() {
   } = useQuery({
     queryKey: ["nearby-species", lat, lng, radius],
     queryFn: () =>
-      withCache(`nearby-${lat}-${lng}-${radius}`, () =>
+      withCache(`nearby-${coarsenCoord(lat!)}-${coarsenCoord(lng!)}-${radius}`, () =>
         fetchNearbySpecies(lat!, lng!, radius, 100)
       ),
     enabled: !!lat && !!lng,
@@ -178,7 +178,7 @@ export default function SignalsScreen() {
   } = useQuery({
     queryKey: ["historical-species", lat, lng, radius],
     queryFn: () =>
-      withCache(`historical-${lat}-${lng}-${radius}`, () =>
+      withCache(`historical-${coarsenCoord(lat!)}-${coarsenCoord(lng!)}-${radius}`, () =>
         fetchHistoricalSpecies(lat!, lng!, radius, 3)
       ),
     enabled: !!lat && !!lng,

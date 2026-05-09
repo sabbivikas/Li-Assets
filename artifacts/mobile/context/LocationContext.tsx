@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
 import React, {
   createContext,
   useCallback,
@@ -37,12 +38,38 @@ const LocationContext = createContext<LocationContextType | null>(null);
 const STORAGE_KEYS = {
   onboarded: "@lifeweb:onboarded",
   radius: "@lifeweb:radius",
-  lat: "@lifeweb:lat",
-  lng: "@lifeweb:lng",
   city: "@lifeweb:city",
   displayName: "@lifeweb:displayName",
   avatarUri: "@lifeweb:avatarUri",
 };
+
+const SECURE_KEYS = {
+  lat: "@lifeweb:lat",
+  lng: "@lifeweb:lng",
+};
+
+async function getSecureItem(key: string): Promise<string | null> {
+  if (Platform.OS === "web") {
+    return AsyncStorage.getItem(key);
+  }
+  return SecureStore.getItemAsync(key);
+}
+
+async function setSecureItem(key: string, value: string): Promise<void> {
+  if (Platform.OS === "web") {
+    await AsyncStorage.setItem(key, value);
+    return;
+  }
+  await SecureStore.setItemAsync(key, value);
+}
+
+async function deleteSecureItem(key: string): Promise<void> {
+  if (Platform.OS === "web") {
+    await AsyncStorage.removeItem(key);
+    return;
+  }
+  await SecureStore.deleteItemAsync(key);
+}
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
   // Default to San Francisco so the app shows real biodiversity data
@@ -69,8 +96,8 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
         await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.onboarded),
           AsyncStorage.getItem(STORAGE_KEYS.radius),
-          AsyncStorage.getItem(STORAGE_KEYS.lat),
-          AsyncStorage.getItem(STORAGE_KEYS.lng),
+          getSecureItem(SECURE_KEYS.lat),
+          getSecureItem(SECURE_KEYS.lng),
           AsyncStorage.getItem(STORAGE_KEYS.city),
           AsyncStorage.getItem(STORAGE_KEYS.displayName),
           AsyncStorage.getItem(STORAGE_KEYS.avatarUri),
@@ -148,8 +175,8 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
 
   async function saveLocation(lat: number, lng: number, city: string) {
     await Promise.all([
-      AsyncStorage.setItem(STORAGE_KEYS.lat, String(lat)),
-      AsyncStorage.setItem(STORAGE_KEYS.lng, String(lng)),
+      setSecureItem(SECURE_KEYS.lat, String(lat)),
+      setSecureItem(SECURE_KEYS.lng, String(lng)),
       AsyncStorage.setItem(STORAGE_KEYS.city, city),
     ]);
     setState((prev) => ({
@@ -172,7 +199,11 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetOnboarding = useCallback(async () => {
-    await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
+    await Promise.all([
+      AsyncStorage.multiRemove(Object.values(STORAGE_KEYS)),
+      deleteSecureItem(SECURE_KEYS.lat),
+      deleteSecureItem(SECURE_KEYS.lng),
+    ]);
     setState({
       lat: 37.7749,
       lng: -122.4194,

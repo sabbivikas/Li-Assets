@@ -43,7 +43,7 @@ import {
 } from "@/components/SpeciesBottomSheet";
 import { SpeciesListSheet } from "@/components/SpeciesListSheet";
 import { useLocation, type Radius } from "@/context/LocationContext";
-import { withCache } from "@/services/cache";
+import { coarsenCoord, withCache } from "@/services/cache";
 import {
   getEcosystemRoles,
   getRoleColor,
@@ -184,7 +184,7 @@ export default function HomeScreen() {
     setRequestingLoc(false);
   }
 
-  const cacheKey = `nearby-${lat}-${lng}-${radius}`;
+  const cacheKey = `nearby-${coarsenCoord(lat!)}-${coarsenCoord(lng!)}-${radius}`;
   const {
     data: species,
     isLoading,
@@ -205,7 +205,7 @@ export default function HomeScreen() {
   } = useQuery({
     queryKey: ["recent-observations", lat, lng, radius],
     queryFn: () =>
-      withCache(`obs-${lat}-${lng}-${radius}`, () =>
+      withCache(`obs-${coarsenCoord(lat!)}-${coarsenCoord(lng!)}-${radius}`, () =>
         fetchRecentObservations(lat!, lng!, radius),
       ),
     enabled: permissionGranted && !!lat && !!lng,
