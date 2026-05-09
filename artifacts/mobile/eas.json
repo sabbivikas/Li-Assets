@@ -1,27 +1,45 @@
 {
   "cli": {
-    "version": ">= 16.0.0"
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
+      "developmentClient": true,
       "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bW9kZXN0LWhlcm1pdC03Mi5jbGVyay5hY2NvdW50cy5kZXYk"
       }
     },
     "preview": {
       "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bW9kZXN0LWhlcm1pdC03Mi5jbGVyay5hY2NvdW50cy5kZXYk"
       }
     },
     "production": {
+      "autoIncrement": true,
+      "ios": {
+        "buildConfiguration": "Release"
+      },
       "env": {
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bW9kZXN0LWhlcm1pdC03Mi5jbGVyay5hY2NvdW50cy5kZXYk"
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "REPLACE_WITH_PRODUCTION_CLERK_KEY"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "REPLACE_WITH_YOUR_APPLE_ID_EMAIL",
+        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
+        "appleTeamId": "REPLACE_WITH_YOUR_APPLE_TEAM_ID"
+      }
+    }
   }
 }

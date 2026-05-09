@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "natura",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -15,11 +15,16 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.replit.natura",
-      "buildNumber": "1"
+      "bundleIdentifier": "com.natura.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Natura uses the camera so you can add a profile photo.",
+        "NSPhotoLibraryUsageDescription": "Natura uses your photo library so you can choose a profile photo."
+      }
     },
     "android": {
-      "backgroundColor": "#fdf6e3"
+      "backgroundColor": "#fdf6e3",
+      "package": "com.natura.app"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -40,6 +45,11 @@
         }
       ]
     ],
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_WITH_YOUR_EAS_PROJECT_ID"
+      }
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
