@@ -12,6 +12,11 @@ let connectionSettings: {
 } | undefined;
 
 async function getApiKey(): Promise<string> {
+  // Prefer a directly-provided v2 secret key (sk_...) when available.
+  // Useful when the Replit connector OAuth has expired or isn't configured.
+  const directKey = process.env.REVENUECAT_API_KEY;
+  if (directKey) return directKey;
+
   if (
     connectionSettings &&
     connectionSettings.settings.expires_at &&
