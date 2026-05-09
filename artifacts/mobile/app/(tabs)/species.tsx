@@ -30,6 +30,7 @@ import {
   PAINT,
   WobbleBox,
 } from "@/components/paint";
+import { SupportButton } from "@/components/SupportButton";
 import { useLocation } from "@/context/LocationContext";
 import {
   fetchNearbySpecies,
@@ -107,7 +108,10 @@ export default function SpeciesScreen() {
 
       {/* Header (fixed) */}
       <View style={[styles.header, { paddingTop: screenTop }]}>
-        <Text style={styles.title}>Local Species</Text>
+        <View style={speciesHeaderStyles.titleRow}>
+          <Text style={styles.title}>Local Species</Text>
+          <SupportButton compact />
+        </View>
         <CrayonUnderline width={180} color={PAINT.grass} seed={3} />
         <Text style={styles.subtitle}>
           {data?.length ?? 0} critters within {radius}km
@@ -408,5 +412,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: PAINT.inkSoft,
     textAlign: "center",
+  },
+});
+
+import { StyleSheet as _SpeciesHeaderSS } from "react-native";
+const speciesHeaderStyles = _SpeciesHeaderSS.create({
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    width: "100%",
   },
 });

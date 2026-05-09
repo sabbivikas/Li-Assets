@@ -29,6 +29,7 @@ import {
   wobble,
   wobbleRect,
 } from "@/components/paint";
+import { SupportButton } from "@/components/SupportButton";
 import {
   enrichCard,
   loadCards,
@@ -167,9 +168,12 @@ export default function CardsScreen() {
             <Text style={styles.title}>Life Cards</Text>
             <CrayonUnderline width={140} color={PAINT.sun} seed={2} />
           </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={styles.countBig}>{cards.length}</Text>
-            <Text style={styles.countSub}>collected nearby</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={styles.countBig}>{cards.length}</Text>
+              <Text style={styles.countSub}>collected nearby</Text>
+            </View>
+            <SupportButton compact />
           </View>
         </View>
 

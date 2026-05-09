@@ -56,6 +56,7 @@ import {
   type ReportTypeMeta,
 } from "@/services/reportTemplate";
 import { SupporterBadge } from "@/components/SupporterBadge";
+import { SupportButton } from "@/components/SupportButton";
 import { generateReportWithAI, FreeTierCapError } from "@/services/aiReport";
 import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/expo";
@@ -368,24 +369,27 @@ export default function ReportsScreen() {
             <Text style={styles.title}>Make a Report</Text>
             <CrayonUnderline width={180} color={PAINT.orange} seed={2} />
           </View>
-          {saved.length > 0 && (
-            <Pressable onPress={() => setSavedOpen(true)}>
-              <WobbleBox
-                width={104}
-                height={40}
-                fill={PAINT.cream}
-                seed={3}
-                padding={0}
-              >
-                <View style={styles.savedBtnInner}>
-                  <Feather name="archive" size={14} color={PAINT.ink} />
-                  <Text style={styles.savedBtnText}>
-                    saved · {saved.length}
-                  </Text>
-                </View>
-              </WobbleBox>
-            </Pressable>
-          )}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {saved.length > 0 && (
+              <Pressable onPress={() => setSavedOpen(true)}>
+                <WobbleBox
+                  width={104}
+                  height={40}
+                  fill={PAINT.cream}
+                  seed={3}
+                  padding={0}
+                >
+                  <View style={styles.savedBtnInner}>
+                    <Feather name="archive" size={14} color={PAINT.ink} />
+                    <Text style={styles.savedBtnText}>
+                      saved · {saved.length}
+                    </Text>
+                  </View>
+                </WobbleBox>
+              </Pressable>
+            )}
+            <SupportButton compact />
+          </View>
         </View>
 
         {/* Free-tier counter or cap-exceeded card */}

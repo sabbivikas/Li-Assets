@@ -45,6 +45,7 @@ import {
   type SpeciesSelection,
 } from "@/components/SpeciesBottomSheet";
 import { SpeciesListSheet } from "@/components/SpeciesListSheet";
+import { SupportButton } from "@/components/SupportButton";
 import { useLocation, type Radius } from "@/context/LocationContext";
 import { coarsenCoord, withCache } from "@/services/cache";
 import {
@@ -504,12 +505,15 @@ export default function HomeScreen() {
               <Text style={styles.radiusText}>· {radius}km</Text>
             </View>
           </View>
-          <Pressable
-            onPress={() => router.push("/(tabs)/species")}
-            style={styles.exploreBtn}
-          >
-            <Feather name="compass" size={20} color={PAINT.ink} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <SupportButton />
+            <Pressable
+              onPress={() => router.push("/(tabs)/species")}
+              style={styles.exploreBtn}
+            >
+              <Feather name="compass" size={20} color={PAINT.ink} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Hero map area */}
@@ -845,6 +849,12 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: 16,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 6,
   },
   titleRow: { flexDirection: "row", alignItems: "flex-start" },
   greeting: {

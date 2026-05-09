@@ -27,6 +27,7 @@ import {
   wobble,
   WobbleBox,
 } from "@/components/paint";
+import { SupportButton } from "@/components/SupportButton";
 import { useLocation } from "@/context/LocationContext";
 import {
   fetchHistoricalSpecies,
@@ -221,7 +222,10 @@ export default function SignalsScreen() {
           />
         }
       >
-        <Text style={styles.title}>Signals</Text>
+        <View style={signalsHeaderStyles.titleRow}>
+          <Text style={styles.title}>Signals</Text>
+          <SupportButton compact />
+        </View>
         <CrayonUnderline width={130} color={PAINT.blue} seed={3} />
         <Text style={styles.subtitle}>
           What&apos;s shifting in your neck of the woods.
@@ -491,5 +495,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: PAINT.ink,
     lineHeight: 19,
+  },
+});
+
+import { StyleSheet as _SignalsHeaderSS } from "react-native";
+const signalsHeaderStyles = _SignalsHeaderSS.create({
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    width: "100%",
   },
 });

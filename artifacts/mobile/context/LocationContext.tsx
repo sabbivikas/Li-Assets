@@ -122,29 +122,104 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     try {
       if (Platform.OS === "web") {
         return new Promise((resolve) => {
+          if (!("geolocation" in navigator)) {
+            // eslint-disable-next-line no-console
+            console.warn("[location] navigator.geolocation unavailable");
+            resolve(false);
+            return;
+          }
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
-              const lat = pos.coords.latitude;
-              const lng = pos.coords.longitude;
-              const city = await reverseGeocode(lat, lng);
-              await saveLocation(lat, lng, city);
-              resolve(true);
+              try {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                const city = await reverseGeocode(lat, lng);
+                await saveLocation(lat, lng, city);
+                resolve(true);
+              } catch (err) {
+                // eslint-disable-next-line no-console
+                console.warn("[location] web saveLocation failed", err);
+                resolve(false);
+              }
             },
-            () => resolve(false)
+            (err) => {
+              // eslint-disable-next-line no-console
+              console.warn("[location] web geolocation error", err);
+              resolve(false);
+            },
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 },
           );
         });
       }
+
+      // Native: check OS-level location services up front so we can give a
+      // useful error rather than hanging forever if the GPS hardware is off.
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) {
+        // eslint-disable-next-line no-console
+        console.warn("[location] OS location services are disabled");
+        return false;
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return false;
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      if (status !== "granted") {
+        // eslint-disable-next-line no-console
+        console.warn("[location] permission not granted:", status);
+        return false;
+      }
+
+      // Try the cached fix first — instant, works indoors and on Android
+      // emulators where getCurrentPositionAsync often hangs waiting for GPS.
+      try {
+        const cached = await Location.getLastKnownPositionAsync({
+          maxAge: 10 * 60 * 1000,
+        });
+        if (cached?.coords) {
+          const { latitude, longitude } = cached.coords;
+          const city = await reverseGeocode(latitude, longitude);
+          await saveLocation(latitude, longitude, city);
+          // Kick off a background fresh fix so subsequent reads are accurate,
+          // but don't block the UI on it.
+          void Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          })
+            .then(async (fresh) => {
+              const flat = fresh.coords.latitude;
+              const flng = fresh.coords.longitude;
+              const fcity = await reverseGeocode(flat, flng);
+              await saveLocation(flat, flng, fcity);
+            })
+            .catch(() => {
+              /* fresh fix is best-effort */
+            });
+          return true;
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[location] getLastKnownPositionAsync failed", err);
+      }
+
+      // No cached fix — request a fresh one with a hard timeout so we never
+      // leave the user staring at a stuck spinner.
+      const loc = await Promise.race<Location.LocationObject | null>([
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 20000)),
+      ]);
+      if (!loc) {
+        // eslint-disable-next-line no-console
+        console.warn("[location] getCurrentPositionAsync timed out after 20s");
+        return false;
+      }
       const lat = loc.coords.latitude;
       const lng = loc.coords.longitude;
       const city = await reverseGeocode(lat, lng);
       await saveLocation(lat, lng, city);
       return true;
-    } catch {
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[location] requestLocation failed", err);
       return false;
     }
   }, []);
