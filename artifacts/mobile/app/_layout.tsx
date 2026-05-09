@@ -57,6 +57,9 @@ SplashScreen.preventAutoHideAsync();
 // install and must be cleared before ClerkProvider's tokenCache reads it,
 // otherwise the user is silently auto-signed-in as the previous account.
 const INSTALL_MARKER_KEY = "@lifeweb:installMarker";
+// Set on fresh install so RootLayoutNav can sign out any residual Clerk session
+// that survived SecureStore cleanup (e.g. native Keychain not fully cleared).
+const FRESH_INSTALL_SIGN_OUT_KEY = "@lifeweb:freshInstallSignOut";
 const CLERK_SECURE_KEYS = [
   "__clerk_client_jwt",
   "__clerk_client_jwt_dev",
@@ -76,7 +79,13 @@ async function clearStaleSessionIfFreshInstall(): Promise<void> {
         ),
       );
     }
-    await AsyncStorage.setItem(INSTALL_MARKER_KEY, "1");
+    await Promise.all([
+      AsyncStorage.setItem(INSTALL_MARKER_KEY, "1"),
+      // Belt-and-suspenders: if the SecureStore deletion above was insufficient
+      // (native Keychain can outlive the app container), RootLayoutNav will see
+      // this flag and call signOut() after ClerkProvider mounts.
+      AsyncStorage.setItem(FRESH_INSTALL_SIGN_OUT_KEY, "1"),
+    ]);
   } catch {
     // Best-effort: if cleanup fails the worst case is the existing buggy
     // behaviour (previous user still signed in), so don't block startup.
@@ -147,11 +156,39 @@ function PushTokenRegistrar() {
 }
 
 function RootLayoutNav() {
-  const { hasOnboarded, loading } = useLocation();
-  const { isLoaded, isSignedIn } = useAuth();
+  const { hasOnboarded, loading, onboardedUserId, resetOnboarding } = useLocation();
+  const { isLoaded, isSignedIn, signOut } = useAuth();
   const { user } = useUser();
+  const [freshInstallChecked, setFreshInstallChecked] = React.useState(false);
 
-  if (loading || !isLoaded) return null;
+  // Belt-and-suspenders for Bug 2: if the pre-mount SecureStore cleanup didn't
+  // fully revoke the Clerk session (native Keychain can survive app deletion),
+  // sign out now before any navigation happens.
+  React.useEffect(() => {
+    if (!isLoaded) return;
+    void (async () => {
+      try {
+        const flag = await AsyncStorage.getItem(FRESH_INSTALL_SIGN_OUT_KEY);
+        if (flag === "1") {
+          if (isSignedIn) await signOut();
+          await AsyncStorage.removeItem(FRESH_INSTALL_SIGN_OUT_KEY);
+        }
+      } finally {
+        setFreshInstallChecked(true);
+      }
+    })();
+  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bug 3: onboarding completion is stored per-user. If a different user signs
+  // in on this device, reset so they see the onboarding flow.
+  React.useEffect(() => {
+    if (!isSignedIn || !user?.id || !hasOnboarded) return;
+    if (onboardedUserId !== null && onboardedUserId !== user.id) {
+      void resetOnboarding();
+    }
+  }, [isSignedIn, user?.id, hasOnboarded, onboardedUserId, resetOnboarding]);
+
+  if (loading || !isLoaded || !freshInstallChecked) return null;
 
   return (
     <SupporterProvider userId={isSignedIn ? user?.id ?? null : null}>

@@ -22,12 +22,13 @@ interface LocationState {
   loading: boolean;
   displayName: string | null;
   localAvatarUri: string | null;
+  onboardedUserId: string | null;
 }
 
 interface LocationContextType extends LocationState {
   requestLocation: () => Promise<boolean>;
   setRadius: (r: Radius) => void;
-  completeOnboarding: () => void;
+  completeOnboarding: (userId?: string) => Promise<void>;
   resetOnboarding: () => void;
   setDisplayName: (name: string) => Promise<void>;
   setLocalAvatarUri: (uri: string | null) => Promise<void>;
@@ -41,6 +42,7 @@ const STORAGE_KEYS = {
   city: "@lifeweb:city",
   displayName: "@lifeweb:displayName",
   avatarUri: "@lifeweb:avatarUri",
+  onboardedUserId: "@lifeweb:onboardedUserId",
 };
 
 const SECURE_KEYS = {
@@ -84,6 +86,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     loading: true,
     displayName: null,
     localAvatarUri: null,
+    onboardedUserId: null,
   });
 
   useEffect(() => {
@@ -92,7 +95,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
 
   async function loadStoredState() {
     try {
-      const [onboarded, radius, lat, lng, city, displayName, avatarUri] =
+      const [onboarded, radius, lat, lng, city, displayName, avatarUri, onboardedUserId] =
         await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.onboarded),
           AsyncStorage.getItem(STORAGE_KEYS.radius),
@@ -101,6 +104,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(STORAGE_KEYS.city),
           AsyncStorage.getItem(STORAGE_KEYS.displayName),
           AsyncStorage.getItem(STORAGE_KEYS.avatarUri),
+          AsyncStorage.getItem(STORAGE_KEYS.onboardedUserId),
         ]);
       setState((prev) => ({
         ...prev,
@@ -111,6 +115,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
         cityName: city ?? prev.cityName,
         displayName: displayName ?? null,
         localAvatarUri: avatarUri ?? null,
+        onboardedUserId: onboardedUserId ?? null,
         loading: false,
       }));
     } catch {
@@ -161,7 +166,10 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      let { status } = await Location.getForegroundPermissionsAsync();
+      if (status === "undetermined") {
+        ({ status } = await Location.requestForegroundPermissionsAsync());
+      }
       if (status !== "granted") {
         // eslint-disable-next-line no-console
         console.warn("[location] permission not granted:", status);
@@ -268,9 +276,19 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, radius: r }));
   }, []);
 
-  const completeOnboarding = useCallback(async () => {
-    await AsyncStorage.setItem(STORAGE_KEYS.onboarded, "true");
-    setState((prev) => ({ ...prev, hasOnboarded: true }));
+  const completeOnboarding = useCallback(async (userId?: string) => {
+    const tasks: Promise<void>[] = [
+      AsyncStorage.setItem(STORAGE_KEYS.onboarded, "true"),
+    ];
+    if (userId) {
+      tasks.push(AsyncStorage.setItem(STORAGE_KEYS.onboardedUserId, userId));
+    }
+    await Promise.all(tasks);
+    setState((prev) => ({
+      ...prev,
+      hasOnboarded: true,
+      onboardedUserId: userId ?? prev.onboardedUserId,
+    }));
   }, []);
 
   const resetOnboarding = useCallback(async () => {

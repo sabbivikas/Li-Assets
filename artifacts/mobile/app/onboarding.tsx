@@ -38,6 +38,7 @@ import Svg, {
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { useUser } from "@clerk/expo";
 import { useLocation } from "@/context/LocationContext";
 import { LocationMap } from "@/components/LocationMap";
 import { LiveEarth } from "@/components/LiveEarth";
@@ -1198,6 +1199,7 @@ const nameStyles = StyleSheet.create({
 export default function OnboardingScreenRoot() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useUser();
   const {
     requestLocation,
     completeOnboarding,
@@ -1287,11 +1289,11 @@ export default function OnboardingScreenRoot() {
 
   const finishOnboarding = useCallback(async () => {
     await Promise.all([
-      completeOnboarding(),
+      completeOnboarding(user?.id),
       AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, "true"),
     ]);
     router.replace("/(tabs)" as never);
-  }, [completeOnboarding, router]);
+  }, [completeOnboarding, router, user?.id]);
 
   const handleContinue = useCallback(async () => {
     lightTap();
