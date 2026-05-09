@@ -64,6 +64,14 @@ import {
   addSeenSpeciesIds,
   getSeenSpeciesIds,
 } from "@/services/seenSpecies";
+import {
+  dismissAlert as dismissSpeciesAlert,
+  formatDaysAgo,
+  loadDismissed,
+  selectTopAlert,
+  upsertSpeciesHistory,
+  type SpeciesAlert,
+} from "@/services/speciesHistory";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RADIUS_STEPS: Radius[] = [5, 10, 25, 50];
@@ -161,6 +169,108 @@ const statStyles = StyleSheet.create({
   },
 });
 
+const ALERT_CHIP_CONFIG: Record<
+  string,
+  { emoji: string; bg: string; border: string; textColor: string }
+> = {
+  at_risk_missing: { emoji: "⚠️", bg: PAINT.red + "22", border: PAINT.red, textColor: PAINT.red },
+  new_arrival: { emoji: "🌿", bg: PAINT.grass + "33", border: PAINT.grassDeep, textColor: PAINT.ink },
+  resident_missing: { emoji: "🔍", bg: PAINT.sun + "44", border: PAINT.orange, textColor: PAINT.ink },
+};
+
+function alertMessage(alert: SpeciesAlert, radiusKm: number): string {
+  const days = formatDaysAgo(alert.lastSeenMs);
+  if (alert.kind === "new_arrival") {
+    return `New arrival — ${alert.name} just spotted within ${radiusKm}km.`;
+  }
+  if (alert.kind === "at_risk_missing") {
+    return `${alert.name} — an at-risk species — hasn't been spotted here in ${days}.`;
+  }
+  return `${alert.name} hasn't been seen here in ${days} — worth keeping an eye out.`;
+}
+
+function AlertChip({
+  alert,
+  radiusKm,
+  onDismiss,
+  onPress,
+}: {
+  alert: SpeciesAlert;
+  radiusKm: number;
+  onDismiss: () => void;
+  onPress?: () => void;
+}) {
+  const cfg = ALERT_CHIP_CONFIG[alert.kind] ?? ALERT_CHIP_CONFIG.new_arrival;
+  const message = alertMessage(alert, radiusKm);
+
+  const inner = (
+    <View
+      style={[
+        chipStyles.chip,
+        { backgroundColor: cfg.bg, borderColor: cfg.border },
+      ]}
+    >
+      <Text style={chipStyles.emoji}>{cfg.emoji}</Text>
+      <Text style={[chipStyles.text, { color: cfg.textColor }]} numberOfLines={2}>
+        {message}
+      </Text>
+      <Pressable onPress={onDismiss} hitSlop={8} style={chipStyles.dismiss}>
+        <Feather name="x" size={14} color={PAINT.inkSoft} />
+      </Pressable>
+    </View>
+  );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={chipStyles.wrapper}>
+        <View
+          style={[
+            chipStyles.chip,
+            { backgroundColor: cfg.bg, borderColor: cfg.border },
+          ]}
+        >
+          <Text style={chipStyles.emoji}>{cfg.emoji}</Text>
+          <Text style={[chipStyles.text, { color: cfg.textColor }]} numberOfLines={2}>
+            {message}
+          </Text>
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              onDismiss();
+            }}
+            hitSlop={8}
+            style={chipStyles.dismiss}
+          >
+            <Feather name="x" size={14} color={PAINT.inkSoft} />
+          </Pressable>
+        </View>
+      </Pressable>
+    );
+  }
+  return <View style={chipStyles.wrapper}>{inner}</View>;
+}
+
+const chipStyles = StyleSheet.create({
+  wrapper: { width: "100%", marginBottom: 12 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 2,
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  emoji: { fontSize: 18 },
+  text: {
+    flex: 1,
+    fontFamily: LABEL_FONT,
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  dismiss: { padding: 2 },
+});
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -171,6 +281,7 @@ export default function HomeScreen() {
   const [clusterSelection, setClusterSelection] = useState<
     SpeciesSelection[] | null
   >(null);
+  const [speciesAlert, setSpeciesAlert] = useState<SpeciesAlert | null>(null);
 
   function pinToSelection(p: PinTapPayload): SpeciesSelection {
     return {
@@ -256,6 +367,10 @@ export default function HomeScreen() {
     }
   }
 
+  const speciesHistoryKey = lat != null && lng != null
+    ? `${coarsenCoord(lat)}-${coarsenCoord(lng)}-${radius}`
+    : null;
+
   const cacheKey = `nearby-${coarsenCoord(lat!)}-${coarsenCoord(lng!)}-${radius}`;
   const {
     data: species,
@@ -283,6 +398,38 @@ export default function HomeScreen() {
     enabled: permissionGranted && !!lat && !!lng,
     retry: false,
   });
+
+  const lastCheckedSpecies = useRef<typeof species>(null);
+  const lastHistoryKey = useRef<string | null>(null);
+  useEffect(() => {
+    // Clear stale alert immediately when location/radius changes.
+    if (speciesHistoryKey !== lastHistoryKey.current) {
+      setSpeciesAlert(null);
+      lastCheckedSpecies.current = null;
+      lastHistoryKey.current = speciesHistoryKey;
+    }
+    if (!species || species.length === 0 || !speciesHistoryKey) return;
+    if (species === lastCheckedSpecies.current) return;
+    lastCheckedSpecies.current = species;
+
+    void (async () => {
+      try {
+        // Upsert first so the returned history is guaranteed up-to-date.
+        // loadDismissed can run concurrently since it uses a separate storage key.
+        const [{ newArrivals, history }, dismissed] = await Promise.all([
+          upsertSpeciesHistory(speciesHistoryKey, species),
+          loadDismissed(),
+        ]);
+        const currentIds = new Set(
+          species.map((s) => s.taxon.id).filter((id): id is number => typeof id === "number"),
+        );
+        const alert = selectTopAlert(history, currentIds, newArrivals, dismissed);
+        setSpeciesAlert(alert);
+      } catch {
+        // non-fatal
+      }
+    })();
+  }, [species, speciesHistoryKey]);
 
   const lastCheckedObservations = useRef<typeof observations>(null);
   useEffect(() => {
@@ -540,6 +687,27 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         </View>
+
+        {/* Species intelligence alert chip — just below radius/location row */}
+        {speciesAlert && (
+          <AlertChip
+            alert={speciesAlert}
+            radiusKm={radius}
+            onDismiss={async () => {
+              await dismissSpeciesAlert(speciesAlert.taxonId);
+              setSpeciesAlert(null);
+            }}
+            onPress={
+              speciesAlert.kind !== "new_arrival"
+                ? () =>
+                    router.push({
+                      pathname: "/species/[id]",
+                      params: { id: String(speciesAlert.taxonId) },
+                    })
+                : undefined
+            }
+          />
+        )}
 
         {/* Hero map area */}
         {isEmpty ? (

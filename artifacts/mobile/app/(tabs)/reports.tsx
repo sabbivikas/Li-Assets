@@ -437,6 +437,19 @@ export default function ReportsScreen() {
               </View>
             </View>
           </WobbleBox>
+        ) : !isSupporter && reportsUsed >= 4 ? (
+          <View style={styles.upgradeBanner}>
+            <Feather name="zap" size={14} color={PAINT.orange} />
+            <Text style={styles.upgradeBannerText}>
+              {Math.max(0, FREE_REPORT_LIMIT - reportsUsed) === 0
+                ? "You've used all your free reports this month."
+                : `Only ${FREE_REPORT_LIMIT - reportsUsed} free report left this month.`}{" "}
+              Unlock unlimited with a Supporter plan.
+            </Text>
+            <Pressable onPress={() => router.push("/support")} hitSlop={6}>
+              <Text style={styles.upgradeBannerCta}>upgrade →</Text>
+            </Pressable>
+          </View>
         ) : !isSupporter ? (
           <View style={styles.capRow}>
             <Feather name="zap" size={12} color={PAINT.inkSoft} />
@@ -1340,6 +1353,31 @@ const styles = StyleSheet.create({
     lineHeight: 36,
   },
 
+  upgradeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: PAINT.sun + "44",
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: PAINT.orange,
+    width: "100%",
+  },
+  upgradeBannerText: {
+    flex: 1,
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.ink,
+    lineHeight: 18,
+  },
+  upgradeBannerCta: {
+    fontFamily: HAND_FONT,
+    fontSize: 15,
+    color: PAINT.ink,
+  },
   capRow: {
     flexDirection: "row",
     alignItems: "center",

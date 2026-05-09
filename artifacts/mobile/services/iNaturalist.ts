@@ -9,6 +9,7 @@ export interface INatTaxon {
   default_photo?: { medium_url?: string; square_url?: string };
   wikipedia_url?: string;
   observations_count?: number;
+  threatened?: boolean;
   conservation_status?: {
     status: string;
     status_name?: string;
