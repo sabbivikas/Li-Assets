@@ -86,7 +86,8 @@ async function seed() {
     client,
     query: { limit: 50 },
   });
-  if (listProjectsError) throw new Error("Failed to list projects");
+  if (listProjectsError) throw new Error("Failed to list projects: " + JSON.stringify(listProjectsError));
+  if (!existingProjects) throw new Error("No project list returned");
   let project: Project | undefined = existingProjects.items?.find(
     (p) => p.name === PROJECT_NAME,
   );
