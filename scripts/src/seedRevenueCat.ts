@@ -164,7 +164,7 @@ async function seed() {
     productIdentifier: string,
     isTestStore: boolean,
   ): Promise<Product> {
-    const existing = existingProducts.items?.find(
+    const existing = existingProducts?.items?.find(
       (p) => p.store_identifier === productIdentifier && p.app_id === targetApp.id,
     );
     if (existing) {

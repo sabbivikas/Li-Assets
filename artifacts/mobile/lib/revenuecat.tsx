@@ -67,6 +67,25 @@ interface SupporterContextValue {
 
 const Ctx = createContext<SupporterContextValue | null>(null);
 
+const DEFAULT_SUPPORTER_CTX: SupporterContextValue = {
+  ready: false,
+  available: false,
+  isSupporter: false,
+  customerInfo: null,
+  offering: null,
+  monthlyPackage: null,
+  yearlyPackage: null,
+  isPurchasing: false,
+  isRestoring: false,
+  purchase: async () => {
+    throw new Error("RevenueCat is not available outside SupporterProvider");
+  },
+  restore: async () => {
+    throw new Error("RevenueCat is not available outside SupporterProvider");
+  },
+  refresh: async () => {},
+};
+
 export function SupporterProvider({
   userId,
   children,
@@ -189,10 +208,13 @@ export function SupporterProvider({
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+/**
+ * Returns supporter state. Outside the SupporterProvider (e.g., during the
+ * sign-in flow before the provider mounts) we return a safe default that
+ * reports the user as not a supporter and exposes no-op purchase actions.
+ * This avoids try/catch defensive patterns at every call site.
+ */
 export function useSupporter(): SupporterContextValue {
   const ctx = useContext(Ctx);
-  if (!ctx) {
-    throw new Error("useSupporter must be used within a SupporterProvider");
-  }
-  return ctx;
+  return ctx ?? DEFAULT_SUPPORTER_CTX;
 }

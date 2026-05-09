@@ -3,7 +3,6 @@ import { StyleSheet, View } from "react-native";
 
 import { PAPER_THEMES, usePaperTheme } from "@/context/PaperThemeContext";
 import { useSupporter } from "@/lib/revenuecat";
-import { PAINT } from "./theme";
 
 /**
  * Paper-textured background. Tinted by the active paper theme so supporters
@@ -14,21 +13,18 @@ import { PAINT } from "./theme";
  * back to the Classic palette so the perk does not leak.
  */
 export function PaperBackground() {
-  let bg = PAINT.paper;
-  try {
-    const { theme } = usePaperTheme();
-    const { isSupporter } = useSupporter();
-    if (theme.supporterOnly && !isSupporter) {
-      bg = PAPER_THEMES[0].paper; // Classic
-    } else {
-      bg = theme.paper;
-    }
-  } catch {
-    /* outside provider — use default */
-  }
+  const { theme } = usePaperTheme();
+  const { isSupporter } = useSupporter();
+  const active =
+    theme.supporterOnly && !isSupporter ? PAPER_THEMES[0] : theme;
   return (
     <View style={styles.fill} pointerEvents="none">
-      <View style={[styles.solid, { backgroundColor: bg }]} />
+      <View style={[styles.solid, { backgroundColor: active.paper }]} />
+      {/* Subtle deeper-paper band along the top edge so theme palette
+          differences (paperDeep) read clearly between Classic / Forest / Dusk. */}
+      <View
+        style={[styles.topBand, { backgroundColor: active.paperDeep }]}
+      />
     </View>
   );
 }
@@ -36,4 +32,12 @@ export function PaperBackground() {
 const styles = StyleSheet.create({
   fill: { ...StyleSheet.absoluteFillObject },
   solid: { ...StyleSheet.absoluteFillObject },
+  topBand: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+    opacity: 0.55,
+  },
 });

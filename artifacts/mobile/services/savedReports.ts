@@ -10,6 +10,8 @@ export interface SavedReport extends GeneratedReport {
   userEditedSubject?: string;
   userEditedBody?: string;
   recipientId?: string;
+  /** True when the report was generated while the author held an active supporter entitlement. */
+  generatedAsSupporter?: boolean;
 }
 
 export async function loadReports(): Promise<SavedReport[]> {

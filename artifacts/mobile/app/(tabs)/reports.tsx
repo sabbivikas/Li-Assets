@@ -55,6 +55,7 @@ import {
   type ReportType,
   type ReportTypeMeta,
 } from "@/services/reportTemplate";
+import { SupporterBadge } from "@/components/SupporterBadge";
 import { generateReportWithAI, FreeTierCapError } from "@/services/aiReport";
 import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/expo";
@@ -94,6 +95,7 @@ export default function ReportsScreen() {
   const router = useRouter();
   const { isSupporter } = useSupporter();
   const [reportsUsed, setReportsUsed] = useState<number>(0);
+  const [capReached, setCapReached] = useState<boolean>(false);
 
   useEffect(() => {
     void getReportsThisMonth().then(setReportsUsed);
@@ -199,7 +201,7 @@ export default function ReportsScreen() {
       // a wasted round-trip when we already know the user is over the limit.
       if (!isSupporter && !(await canGenerateReport())) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        router.push("/support");
+        setCapReached(true);
         return;
       }
       setAiError(null);
@@ -226,7 +228,8 @@ export default function ReportsScreen() {
         if (err instanceof FreeTierCapError) {
           setGenerating(false);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          router.push("/support");
+          setReportsUsed(err.used);
+          setCapReached(true);
           return;
         }
         setAiError(
@@ -317,6 +320,7 @@ export default function ReportsScreen() {
       userEditedSubject: editedSubject,
       userEditedBody: editedBody,
       recipientId: recipient?.id,
+      generatedAsSupporter: isSupporter,
     };
     await saveReport(sr);
     setSaved(await loadReports());
@@ -384,8 +388,52 @@ export default function ReportsScreen() {
           )}
         </View>
 
-        {/* Free-tier counter */}
-        {!isSupporter && (
+        {/* Free-tier counter or cap-exceeded card */}
+        {!isSupporter && capReached ? (
+          <WobbleBox
+            width={358}
+            height={140}
+            fill={PAINT.cream}
+            stroke={PAINT.red}
+            strokeWidth={2.5}
+            seed={71}
+            padding={14}
+          >
+            <View style={styles.capCard}>
+              <View style={styles.capCardHeader}>
+                <Feather name="alert-circle" size={18} color={PAINT.red} />
+                <Text style={styles.capCardTitle}>Free reports used up</Text>
+              </View>
+              <Text style={styles.capCardBody}>
+                You've generated {Math.max(reportsUsed, FREE_REPORT_LIMIT)} of {FREE_REPORT_LIMIT}{" "}
+                free AI reports this month. Become a Supporter for unlimited
+                reports + extra paper themes.
+              </Text>
+              <View style={styles.capCardActions}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    router.push("/support");
+                  }}
+                  style={({ pressed }) => [
+                    styles.capCardCta,
+                    { opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <Feather name="heart" size={14} color={PAINT.paper} />
+                  <Text style={styles.capCardCtaText}>Become a Supporter</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setCapReached(false)}
+                  hitSlop={6}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <Text style={styles.capCardDismiss}>Maybe later</Text>
+                </Pressable>
+              </View>
+            </View>
+          </WobbleBox>
+        ) : !isSupporter ? (
           <View style={styles.capRow}>
             <Feather name="zap" size={12} color={PAINT.inkSoft} />
             <Text style={styles.capText}>
@@ -396,7 +444,7 @@ export default function ReportsScreen() {
               <Text style={styles.capLink}>support →</Text>
             </Pressable>
           </View>
-        )}
+        ) : null}
 
         {/* Stepper */}
         <View style={styles.stepperRow}>
@@ -1222,6 +1270,11 @@ function SavedModal({
                           {new Date(r.generatedAt).toLocaleDateString()} ·{" "}
                           {r.observationsCount} obs
                         </Text>
+                        {r.generatedAsSupporter ? (
+                          <View style={{ marginTop: 4 }}>
+                            <SupporterBadge size="sm" />
+                          </View>
+                        ) : null}
                       </View>
                       <View style={{ gap: 4 }}>
                         <Pressable onPress={() => onOpen(r)} hitSlop={6}>
@@ -1306,6 +1359,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: PAINT.ink,
     marginLeft: 4,
+  },
+  capCard: { flex: 1, gap: 8 },
+  capCardHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  capCardTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    color: PAINT.ink,
+  },
+  capCardBody: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkSoft,
+    lineHeight: 18,
+  },
+  capCardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginTop: 2,
+  },
+  capCardCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: PAINT.red,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  capCardCtaText: {
+    fontFamily: HAND_FONT,
+    fontSize: 16,
+    color: PAINT.paper,
+  },
+  capCardDismiss: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkSoft,
+    textDecorationLine: "underline",
   },
   savedBtnInner: {
     flex: 1,

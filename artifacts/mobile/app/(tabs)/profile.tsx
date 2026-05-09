@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -470,6 +471,28 @@ export default function ProfileScreen() {
 
         {/* Sign out */}
         <Text style={styles.sectionTitle}>account</Text>
+        {isSupporter ? (
+          <Pressable
+            onPress={() => {
+              if (Platform.OS !== "web") void Haptics.selectionAsync();
+              const url =
+                Platform.OS === "ios"
+                  ? "https://apps.apple.com/account/subscriptions"
+                  : Platform.OS === "android"
+                    ? "https://play.google.com/store/account/subscriptions"
+                    : "https://www.revenuecat.com/";
+              void Linking.openURL(url);
+            }}
+            style={({ pressed }) => [
+              styles.manageSubRow,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Feather name="credit-card" size={14} color={PAINT.ink} />
+            <Text style={styles.manageSubText}>Manage subscription</Text>
+            <Feather name="external-link" size={12} color={PAINT.inkSoft} />
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={() => void restore()}
           disabled={!rcAvailable || isRestoring}
@@ -839,6 +862,24 @@ const styles = StyleSheet.create({
     fontFamily: LABEL_FONT,
     fontSize: 13,
     color: PAINT.inkSoft,
+  },
+  manageSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "center",
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: PAINT.cream,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: PAINT.ink,
+  },
+  manageSubText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.ink,
   },
   modalBackdrop: {
     flex: 1,
