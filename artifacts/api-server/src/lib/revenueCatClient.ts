@@ -79,9 +79,10 @@ const entitlementCache = new Map<string, CacheEntry>();
  *   - "not_supporter" — RC confirms no active entitlement (incl. unknown customer)
  *   - "unknown"       — RC was unreachable / errored / not configured
  *
- * Callers should treat "unknown" conservatively: do NOT enforce paid features
- * (we won't grant supporter perks during an outage), but ALSO do not punish the
- * user (we won't apply the free-tier cap when we can't tell who they are).
+ * Callers should treat "unknown" as a non-supporter for any paid feature
+ * gating: we never grant supporter perks unless RC explicitly confirms the
+ * entitlement. The /openai/generate-report route fails closed on "unknown"
+ * so the free-tier cap stays enforced when RC is misconfigured/unreachable.
  */
 export async function getSupporterStatus(
   appUserId: string,

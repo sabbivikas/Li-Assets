@@ -16,19 +16,24 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 export const SUPPORTER_ENTITLEMENT = "supporter";
 
 function pickApiKey(): string | null {
-  if (!REVENUECAT_TEST_API_KEY) return null;
-  if (
-    __DEV__ ||
-    Platform.OS === "web" ||
-    Constants.executionEnvironment === "storeClient"
-  ) {
-    return REVENUECAT_TEST_API_KEY;
+  // In a production native build, prefer the platform-specific store key so
+  // that builds without a test key still configure RevenueCat correctly.
+  if (!__DEV__ && Constants.executionEnvironment !== "storeClient") {
+    if (Platform.OS === "ios" && REVENUECAT_IOS_API_KEY) {
+      return REVENUECAT_IOS_API_KEY;
+    }
+    if (Platform.OS === "android" && REVENUECAT_ANDROID_API_KEY) {
+      return REVENUECAT_ANDROID_API_KEY;
+    }
   }
+  // Dev / Expo Go / web fall back to the test-store key.
+  if (REVENUECAT_TEST_API_KEY) return REVENUECAT_TEST_API_KEY;
+  // Last-resort: any platform key we have, so prod still works without test key.
   if (Platform.OS === "ios" && REVENUECAT_IOS_API_KEY) return REVENUECAT_IOS_API_KEY;
   if (Platform.OS === "android" && REVENUECAT_ANDROID_API_KEY) {
     return REVENUECAT_ANDROID_API_KEY;
   }
-  return REVENUECAT_TEST_API_KEY;
+  return null;
 }
 
 let initialized = false;
