@@ -247,8 +247,8 @@ export default function SupportScreen() {
           <View style={styles.rdCallout}>
             <Feather name="activity" size={15} color={PAINT.grassDeep} />
             <Text style={styles.rdText}>
-              Annual plans cover AI report costs, servers, and the ongoing work of
-              testing better models and data sources to make Natura more useful.
+              Annual plans fund the ongoing research into better AI models, richer
+              biodiversity data sources, and the infrastructure that powers every report.
             </Text>
           </View>
         )}
