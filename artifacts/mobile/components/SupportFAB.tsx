@@ -9,7 +9,11 @@ import Svg, { Path } from "react-native-svg";
 import { HAND_FONT, PAINT } from "@/components/paint";
 import { useSupporter } from "@/lib/revenuecat";
 
-const HIDDEN_ROUTES = new Set(["/profile", "/support", "/settings"]);
+const HIDDEN_PREFIXES = ["/profile", "/support", "/settings"];
+
+function isHiddenRoute(pathname: string): boolean {
+  return HIDDEN_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
+}
 
 export function SupportFAB() {
   const router = useRouter();
@@ -17,7 +21,7 @@ export function SupportFAB() {
   const { isSupporter } = useSupporter();
   const pathname = usePathname();
 
-  if (HIDDEN_ROUTES.has(pathname)) return null;
+  if (isHiddenRoute(pathname)) return null;
 
   function handlePress() {
     if (Platform.OS !== "web") void Haptics.selectionAsync();
