@@ -106,15 +106,19 @@ async function seed() {
   if (listProjectsError) throw new Error("Failed to list projects: " + JSON.stringify(listProjectsError));
   if (!existingProjects) throw new Error("No project list returned");
   let project: Project | undefined = existingProjects.items?.find(
-    (p) => p.name === PROJECT_NAME,
+    (p) => p.name.toLowerCase() === PROJECT_NAME.toLowerCase(),
   );
   if (!project) {
     const { data, error } = await createProject({ client, body: { name: PROJECT_NAME } });
-    if (error || !data) throw new Error("Failed to create project");
+    if (error || !data) {
+      throw new Error(
+        "Failed to create project: " + JSON.stringify(error, null, 2),
+      );
+    }
     project = data;
     console.log("Created project:", project.id);
   } else {
-    console.log("Project already exists:", project.id);
+    console.log("Project already exists:", project.id, "(", project.name, ")");
   }
 
   // 2. Apps (test store auto-created; create app store + play store)
