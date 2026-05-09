@@ -494,7 +494,25 @@ export default function ProfileScreen() {
           </Pressable>
         ) : null}
         <Pressable
-          onPress={() => void restore()}
+          onPress={() => {
+              if (Platform.OS !== "web") void Haptics.selectionAsync();
+              restore()
+                .then((info) => {
+                  const active = !!info.entitlements.active.supporter;
+                  if (active) {
+                    if (Platform.OS !== "web")
+                      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  } else {
+                    Alert.alert(
+                      "No purchases found",
+                      "We couldn't find an active supporter subscription on this account.",
+                    );
+                  }
+                })
+                .catch((err: { message?: string }) => {
+                  Alert.alert("Couldn't restore", err?.message ?? "Please try again.");
+                });
+            }}
           disabled={!rcAvailable || isRestoring}
           style={({ pressed }) => [
             styles.restoreLink,
