@@ -187,44 +187,69 @@ export default function HomeScreen() {
     };
   }
 
+  function openAppSettings() {
+    // On iOS, "app-settings:" deep-links straight to the app's own entry in
+    // Settings (where the Location toggle lives). Linking.openSettings()
+    // sometimes lands on the top-level Settings screen instead.
+    if (Platform.OS === "ios") {
+      void Linking.openURL("app-settings:");
+    } else {
+      void Linking.openSettings();
+    }
+  }
+
   async function handleUseMyLocation() {
     setRequestingLoc(true);
     try {
-      // On native, if the user previously denied permission iOS/Android will
-      // NOT re-prompt — requestForegroundPermissionsAsync just returns the
-      // cached "denied" status, making the button feel broken. Detect that
-      // case and route the user to Settings instead.
-      if (Platform.OS !== "web") {
-        const current = await Location.getForegroundPermissionsAsync();
-        if (current.status === "denied" && !current.canAskAgain) {
-          Alert.alert(
-            "Location is off",
-            "Natura needs location access to show wildlife near you. Turn it on in Settings.",
-            [
-              { text: "Not now", style: "cancel" },
-              { text: "Open Settings", onPress: () => void Linking.openSettings() },
-            ],
-          );
-          return;
-        }
-      }
-      const ok = await requestLocation();
-      if (!ok) {
-        if (Platform.OS === "web") {
+      // Web: browser handles the permission UI entirely.
+      if (Platform.OS === "web") {
+        const ok = await requestLocation();
+        if (!ok) {
           // eslint-disable-next-line no-alert
           window.alert(
             "We couldn't read your location. Please allow location access in your browser and try again.",
           );
-        } else {
-          Alert.alert(
-            "Couldn't get your location",
-            "Please make sure location services are on and try again.",
-            [
-              { text: "OK", style: "cancel" },
-              { text: "Open Settings", onPress: () => void Linking.openSettings() },
-            ],
-          );
         }
+        return;
+      }
+
+      // Native three-state flow:
+      // 1) Check the current permission status.
+      let perm = await Location.getForegroundPermissionsAsync();
+
+      // 2) If the OS has never asked, trigger the native prompt now.
+      if (perm.status === "undetermined") {
+        perm = await Location.requestForegroundPermissionsAsync();
+      }
+
+      // 3) Still not granted (initial deny, "don't ask again", or just
+      //    denied in the prompt) — do NOT show the generic error. Route the
+      //    user straight to the Natura entry in iOS Settings instead.
+      if (perm.status !== "granted") {
+        Alert.alert(
+          "Location is off for Natura",
+          Platform.OS === "ios"
+            ? "Please enable location for Natura in iPhone Settings, then come back and try again."
+            : "Please enable location for Natura in your phone's settings, then come back and try again.",
+          [
+            { text: "Not now", style: "cancel" },
+            { text: "Open Settings", onPress: openAppSettings },
+          ],
+        );
+        return;
+      }
+
+      // 4) Permission granted — actually fetch the coordinates.
+      const ok = await requestLocation();
+      if (!ok) {
+        Alert.alert(
+          "Couldn't get your location",
+          "Please make sure location services are on and try again.",
+          [
+            { text: "OK", style: "cancel" },
+            { text: "Open Settings", onPress: openAppSettings },
+          ],
+        );
       }
     } finally {
       setRequestingLoc(false);

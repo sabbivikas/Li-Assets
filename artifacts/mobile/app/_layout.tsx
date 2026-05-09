@@ -12,12 +12,14 @@ import {
 import { PatrickHand_400Regular } from "@expo-google-fonts/patrick-hand";
 import { ClerkLoaded, ClerkProvider, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -46,6 +48,40 @@ const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
 const clerkProxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
 
 SplashScreen.preventAutoHideAsync();
+
+// On iOS the Keychain (which expo-secure-store / Clerk's tokenCache use)
+// survives app deletion. AsyncStorage does NOT — it's wiped with the app
+// container. We use that asymmetry to detect a fresh install: if the marker
+// is missing in AsyncStorage, this is the first launch since (re)install,
+// so any Clerk session jwt left behind in the Keychain belongs to a previous
+// install and must be cleared before ClerkProvider's tokenCache reads it,
+// otherwise the user is silently auto-signed-in as the previous account.
+const INSTALL_MARKER_KEY = "@lifeweb:installMarker";
+const CLERK_SECURE_KEYS = [
+  "__clerk_client_jwt",
+  "__clerk_client_jwt_dev",
+  "__clerk_session_jwt",
+  "__clerk_session_jwt_dev",
+  "__clerk_environment",
+];
+
+async function clearStaleSessionIfFreshInstall(): Promise<void> {
+  try {
+    const marker = await AsyncStorage.getItem(INSTALL_MARKER_KEY);
+    if (marker) return;
+    if (Platform.OS !== "web") {
+      await Promise.all(
+        CLERK_SECURE_KEYS.map((k) =>
+          SecureStore.deleteItemAsync(k).catch(() => undefined),
+        ),
+      );
+    }
+    await AsyncStorage.setItem(INSTALL_MARKER_KEY, "1");
+  } catch {
+    // Best-effort: if cleanup fails the worst case is the existing buggy
+    // behaviour (previous user still signed in), so don't block startup.
+  }
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -162,17 +198,27 @@ export default function RootLayout() {
     PatrickHand_400Regular,
   });
 
+  // Run the fresh-install Keychain cleanup BEFORE ClerkProvider mounts so
+  // tokenCache never sees a stale jwt left behind by a previous install.
+  const [sessionCleanupDone, setSessionCleanupDone] = useState(false);
+
+  useEffect(() => {
+    void clearStaleSessionIfFreshInstall().finally(() =>
+      setSessionCleanupDone(true),
+    );
+  }, []);
+
   useEffect(() => {
     initializeRevenueCat();
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if ((fontsLoaded || fontError) && sessionCleanupDone) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, sessionCleanupDone]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if ((!fontsLoaded && !fontError) || !sessionCleanupDone) return null;
 
   if (!publishableKey) {
     return (
