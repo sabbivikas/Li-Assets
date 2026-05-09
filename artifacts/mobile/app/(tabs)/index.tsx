@@ -2,8 +2,9 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Linking,
@@ -57,6 +58,11 @@ import {
   getIconicGroup,
 } from "@/services/iNaturalist";
 import { generateInsights } from "@/services/insights";
+import { getNotificationPrefs } from "@/services/notificationPrefs";
+import {
+  addSeenSpeciesIds,
+  getSeenSpeciesIds,
+} from "@/services/seenSpecies";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RADIUS_STEPS: Radius[] = [5, 10, 25, 50];
@@ -251,6 +257,52 @@ export default function HomeScreen() {
     enabled: permissionGranted && !!lat && !!lng,
     retry: false,
   });
+
+  const lastCheckedObservations = useRef<typeof observations>(null);
+  useEffect(() => {
+    if (!observations || observations.length === 0) return;
+    if (observations === lastCheckedObservations.current) return;
+    lastCheckedObservations.current = observations;
+
+    void (async () => {
+      try {
+        const prefs = await getNotificationPrefs();
+        if (!prefs.speciesNearby) return;
+        if (Platform.OS === "web") return;
+
+        const currentIds = observations
+          .map((o) => o.taxon?.id)
+          .filter((id): id is number => typeof id === "number");
+
+        const seen = await getSeenSpeciesIds();
+        const newIds = currentIds.filter((id) => !seen.has(id));
+
+        if (newIds.length > 0) {
+          const example = observations.find((o) =>
+            typeof o.taxon?.id === "number" && newIds.includes(o.taxon.id as number),
+          );
+          const speciesName =
+            example?.taxon?.preferred_common_name ||
+            example?.taxon?.name ||
+            "a species";
+
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "New species nearby!",
+              body: `${speciesName} has been spotted near ${cityName ?? "you"} — ${newIds.length} new ${newIds.length === 1 ? "species" : "species"} in your area.`,
+              data: { type: "species_nearby", count: newIds.length },
+              sound: true,
+            },
+            trigger: null,
+          });
+        }
+
+        await addSeenSpeciesIds(currentIds);
+      } catch {
+        /* non-fatal */
+      }
+    })();
+  }, [observations, cityName]);
 
   const mapPins: (SpeciesPin & {
     observedOn?: string;

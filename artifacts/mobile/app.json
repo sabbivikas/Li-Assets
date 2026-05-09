@@ -43,6 +43,12 @@
         {
           "locationWhenInUsePermission": "Natura needs your location to find species observed near you."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "iosDisplayInForeground": true
+        }
       ]
     ],
     "extra": {

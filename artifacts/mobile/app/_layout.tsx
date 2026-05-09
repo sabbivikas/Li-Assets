@@ -13,9 +13,10 @@ import { PatrickHand_400Regular } from "@expo-google-fonts/patrick-hand";
 import { ClerkLoaded, ClerkProvider, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -26,6 +27,20 @@ import { LocationProvider, useLocation } from "@/context/LocationContext";
 import { PaperThemeProvider } from "@/context/PaperThemeContext";
 import { initializeRevenueCat, SupporterProvider } from "@/lib/revenuecat";
 import { useUser } from "@clerk/expo";
+import {
+  getNotificationPrefs,
+  registerPushToken,
+} from "@/services/notificationPrefs";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
 const clerkProxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
@@ -41,6 +56,60 @@ const queryClient = new QueryClient({
   },
 });
 
+interface RegisteredState {
+  lat: number;
+  lng: number;
+  radiusKm: number;
+  city: string;
+  weeklyDigest: boolean;
+}
+
+function PushTokenRegistrar() {
+  const { getToken, isSignedIn } = useAuth();
+  const { lat, lng, radius, cityName } = useLocation();
+  const lastRegistered = useRef<RegisteredState | null>(null);
+
+  useEffect(() => {
+    if (!isSignedIn || !lat || !lng) return;
+
+    void (async () => {
+      try {
+        const prefs = await getNotificationPrefs();
+        const nextState: RegisteredState = {
+          lat,
+          lng,
+          radiusKm: radius,
+          city: cityName ?? "your area",
+          weeklyDigest: prefs.weeklyDigest,
+        };
+
+        const prev = lastRegistered.current;
+        const changed =
+          !prev ||
+          prev.lat !== nextState.lat ||
+          prev.lng !== nextState.lng ||
+          prev.radiusKm !== nextState.radiusKm ||
+          prev.city !== nextState.city ||
+          prev.weeklyDigest !== nextState.weeklyDigest;
+
+        if (!changed) return;
+
+        const authToken = await getToken();
+        if (!authToken) return;
+
+        const ok = await registerPushToken({ authToken, ...nextState });
+        if (ok) {
+          lastRegistered.current = nextState;
+        }
+      } catch {
+        /* non-fatal */
+      }
+    })();
+  }, [isSignedIn, lat, lng, radius, cityName, getToken]);
+
+  return null;
+}
+
 function RootLayoutNav() {
   const { hasOnboarded, loading } = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
@@ -50,6 +119,7 @@ function RootLayoutNav() {
 
   return (
     <SupporterProvider userId={isSignedIn ? user?.id ?? null : null}>
+      {isSignedIn && <PushTokenRegistrar />}
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#fdf6e3" } }}>
         {!isSignedIn ? (
           <Stack.Screen name="(auth)" options={{ animation: "fade" }} />

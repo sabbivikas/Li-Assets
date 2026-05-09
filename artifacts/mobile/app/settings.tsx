@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useUser } from "@clerk/expo";
+import { useAuth, useUser } from "@clerk/expo";
 import { File as FSFile, Paths } from "expo-file-system";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -32,10 +32,13 @@ import { clearCache } from "@/services/cache";
 import { loadCards } from "@/services/lifeCards";
 import {
   getNotificationPrefs,
+  registerPushToken,
   requestNotificationPermission,
   setNotificationPref,
+  unregisterPushToken,
   type NotificationPrefs,
 } from "@/services/notificationPrefs";
+import { useLocation } from "@/context/LocationContext";
 import { loadReports } from "@/services/savedReports";
 
 const PRIVACY_POLICY_URL = "https://natura.app/privacy";
@@ -44,6 +47,8 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useUser();
+  const { getToken } = useAuth();
+  const { lat, lng, radius, cityName } = useLocation();
 
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
     weeklyDigest: false,
@@ -71,6 +76,26 @@ export default function SettingsScreen() {
     const next = { ...notifPrefs, [key]: value };
     setNotifPrefs(next);
     await setNotificationPref(key, value);
+
+    const bothOff = !next.weeklyDigest && !next.speciesNearby;
+    try {
+      const authToken = await getToken();
+      if (!authToken) return;
+      if (bothOff) {
+        await unregisterPushToken(authToken);
+      } else if (lat && lng) {
+        await registerPushToken({
+          authToken,
+          lat,
+          lng,
+          radiusKm: radius,
+          city: cityName ?? "your area",
+          weeklyDigest: next.weeklyDigest,
+        });
+      }
+    } catch {
+      /* non-fatal */
+    }
   }
 
   async function handleExport() {
@@ -161,6 +186,10 @@ export default function SettingsScreen() {
                     }
                     setDeletingAccount(true);
                     try {
+                      const authToken = await getToken();
+                      if (authToken) {
+                        await unregisterPushToken(authToken).catch(() => {});
+                      }
                       await user.delete();
                       await AsyncStorage.clear();
                       router.replace("/(auth)/sign-in");
@@ -227,7 +256,7 @@ export default function SettingsScreen() {
           <View style={styles.notifNote}>
             <Feather name="info" size={12} color={PAINT.inkMute} />
             <Text style={styles.notifNoteText}>
-              Notification delivery is coming in a future update. Your preferences are saved.
+              Notifications are sent via Expo Push. A weekly digest fires server-side; new-species alerts fire locally.
             </Text>
           </View>
         </View>
