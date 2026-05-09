@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Discover from "@/pages/Discover";
 import SpeciesDetail from "@/pages/SpeciesDetail";
 import Signals from "@/pages/Signals";
+import Privacy from "@/pages/Privacy";
 import NotFound from "@/pages/not-found";
 import { Navbar } from "@/components/layout/Navbar";
 
@@ -20,6 +21,7 @@ function Router() {
           <Route path="/" component={Discover} />
           <Route path="/species/:id" component={SpeciesDetail} />
           <Route path="/signals" component={Signals} />
+          <Route path="/privacy" component={Privacy} />
           <Route component={NotFound} />
         </Switch>
       </main>

@@ -41,7 +41,7 @@ import {
 import { useLocation } from "@/context/LocationContext";
 import { loadReports } from "@/services/savedReports";
 
-const PRIVACY_POLICY_URL = "https://natura.app/privacy";
+const PRIVACY_POLICY_URL = "https://lifeweb.replit.app/explore/privacy";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
