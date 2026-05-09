@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -37,9 +37,49 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+const replitDomains = (process.env.REPLIT_DOMAINS ?? "")
+  .split(",")
+  .map((d) => d.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set<string>([
+  ...replitDomains.map((d) => `https://${d}`),
+  ...(process.env.NODE_ENV !== "production"
+    ? ["http://localhost:3000", "http://localhost:8081", "http://localhost:5173"]
+    : []),
+]);
+
+app.use(
+  cors({
+    credentials: true,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
+  }),
+);
 app.use(express.json({ limit: "32kb" }));
 app.use(express.urlencoded({ extended: true, limit: "32kb" }));
+
+/**
+ * In production, reject any request whose effective host is not in the
+ * REPLIT_DOMAINS allowlist before Clerk key derivation or auth middleware
+ * runs. This prevents host-header injection from influencing the Clerk
+ * publishable key or proxy URL even on unauthenticated routes.
+ */
+if (process.env.NODE_ENV === "production") {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const host = getClerkProxyHost(req);
+    if (!host) {
+      res.status(400).json({ error: "invalid_host" });
+      return;
+    }
+    next();
+  });
+}
 
 app.use(
   clerkMiddleware((req) => ({
