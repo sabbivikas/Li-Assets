@@ -469,8 +469,19 @@ export default function ProfileScreen() {
           })}
         </View>
 
-        {/* Sign out */}
+        {/* Account */}
         <Text style={styles.sectionTitle}>account</Text>
+        <Pressable
+          onPress={() => {
+            if (Platform.OS !== "web") void Haptics.selectionAsync();
+            router.push("/settings");
+          }}
+          style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Feather name="settings" size={15} color={PAINT.ink} />
+          <Text style={styles.settingsRowText}>Settings</Text>
+          <Feather name="chevron-right" size={15} color={PAINT.inkMute} />
+        </Pressable>
         {isSupporter ? (
           <Pressable
             onPress={() => {
@@ -864,6 +875,26 @@ const styles = StyleSheet.create({
   themeLabel: {
     fontFamily: LABEL_FONT,
     fontSize: 13,
+    color: PAINT.ink,
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    alignSelf: "stretch",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: PAINT.cream,
+    borderWidth: 2,
+    borderColor: PAINT.ink,
+    borderRadius: 16,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  settingsRowText: {
+    flex: 1,
+    fontFamily: HAND_FONT,
+    fontSize: 22,
     color: PAINT.ink,
   },
   restoreLink: {

@@ -70,6 +70,10 @@ function RootLayoutNav() {
               name="support"
               options={{ headerShown: false, animation: "slide_from_bottom", presentation: "modal" }}
             />
+            <Stack.Screen
+              name="settings"
+              options={{ headerShown: false, animation: "slide_from_right" }}
+            />
           </>
         )}
       </Stack>
