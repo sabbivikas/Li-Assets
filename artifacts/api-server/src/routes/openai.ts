@@ -8,6 +8,8 @@ import {
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
+import { hasSupporterEntitlement } from "../lib/revenueCatClient.js";
+
 const router: IRouter = Router();
 
 const SYSTEM_PROMPT = `You write short civic biodiversity report narratives for the "Life Web" app.
@@ -34,6 +36,29 @@ const ipRateMap = new Map<string, RateLimitEntry>();
 
 const userConcurrency = new Map<string, number>();
 const MAX_USER_CONCURRENCY = 2;
+
+// Free-tier monthly cap. Server-side source of truth so clearing local
+// storage on the device cannot bypass the limit. Supporters bypass via
+// active "supporter" entitlement in RevenueCat.
+const FREE_MONTHLY_REPORT_CAP = 5;
+const monthlyReportCount = new Map<string, number>();
+
+function currentYearMonth(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthlyKey(userId: string): string {
+  return `${userId}:${currentYearMonth()}`;
+}
+
+function purgeStaleMonthlyEntries(): void {
+  const ym = currentYearMonth();
+  for (const key of monthlyReportCount.keys()) {
+    if (!key.endsWith(`:${ym}`)) monthlyReportCount.delete(key);
+  }
+}
+setInterval(purgeStaleMonthlyEntries, 60 * 60_000).unref();
 
 function purgeStaleEntries(): void {
   const now = Date.now();
@@ -145,6 +170,28 @@ router.post(
     }
 
     const ctx = parsed.data as GenerateReportRequest;
+
+    // Free-tier monthly cap enforcement (server-side source of truth).
+    // Supporters bypass the cap via active "supporter" entitlement.
+    if (userId !== null) {
+      const isSupporter = await hasSupporterEntitlement(userId);
+      if (!isSupporter) {
+        const key = monthlyKey(userId);
+        const used = monthlyReportCount.get(key) ?? 0;
+        if (used >= FREE_MONTHLY_REPORT_CAP) {
+          release();
+          res.status(402).json({
+            error: "free_cap_reached",
+            message:
+              "You've reached this month's free AI report limit. Become a Natura Supporter for unlimited reports.",
+            used,
+            limit: FREE_MONTHLY_REPORT_CAP,
+          });
+          return;
+        }
+        monthlyReportCount.set(key, used + 1);
+      }
+    }
 
     const userPrompt = [
       `Report type: ${ctx.type}`,

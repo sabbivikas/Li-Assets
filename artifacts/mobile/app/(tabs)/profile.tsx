@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScreenPadding } from "@/theme";
 
 import { BadgeMedal } from "@/components/BadgeMedal";
+import { SupporterBadge } from "@/components/SupporterBadge";
 import {
   CrayonUnderline,
   Flower,
@@ -33,6 +34,8 @@ import {
   WobbleBox,
 } from "@/components/paint";
 import { useLocation } from "@/context/LocationContext";
+import { PAPER_THEMES, usePaperTheme } from "@/context/PaperThemeContext";
+import { useSupporter } from "@/lib/revenuecat";
 import {
   computeBadgeStates,
   getFeaturedBadges,
@@ -57,6 +60,8 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
+  const { isSupporter, restore, isRestoring, available: rcAvailable } = useSupporter();
+  const { themeId, setTheme } = usePaperTheme();
   const {
     cityName,
     radius,
@@ -306,6 +311,11 @@ export default function ProfileScreen() {
                 </Text>
                 <Feather name="edit-2" size={14} color={PAINT.inkMute} />
               </Pressable>
+              {isSupporter ? (
+                <View style={{ marginTop: 6 }}>
+                  <SupporterBadge size="sm" />
+                </View>
+              ) : null}
               {email ? (
                 <Text style={styles.email} numberOfLines={1}>
                   {email}
@@ -366,8 +376,117 @@ export default function ProfileScreen() {
           <Feather name="arrow-right" size={16} color={PAINT.ink} />
         </Pressable>
 
+        {/* Support Natura */}
+        <Text style={styles.sectionTitle}>support</Text>
+        <Pressable
+          onPress={() => {
+            if (Platform.OS !== "web") void Haptics.selectionAsync();
+            router.push("/support");
+          }}
+          style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1, marginTop: 6 }]}
+        >
+          <WobbleBox
+            width={358}
+            height={isSupporter ? 72 : 92}
+            fill={isSupporter ? PAINT.cream : PAINT.pink + "33"}
+            stroke={isSupporter ? PAINT.grassDeep : PAINT.pink}
+            strokeWidth={2.5}
+            seed={29}
+            padding={14}
+          >
+            <View style={styles.supportRow}>
+              <Feather
+                name="heart"
+                size={22}
+                color={isSupporter ? PAINT.grassDeep : PAINT.red}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.supportTitle}>
+                  {isSupporter ? "You're a Supporter" : "Support Natura"}
+                </Text>
+                <Text style={styles.supportBody}>
+                  {isSupporter
+                    ? "Thanks for keeping Natura alive."
+                    : "Unlock unlimited AI reports & paper themes."}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={PAINT.ink} />
+            </View>
+          </WobbleBox>
+        </Pressable>
+
+        {/* Paper theme */}
+        <Text style={styles.sectionTitle}>paper theme</Text>
+        <View style={styles.themeRow}>
+          {PAPER_THEMES.map((t) => {
+            const locked = t.supporterOnly && !isSupporter;
+            const active = themeId === t.id;
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => {
+                  if (Platform.OS !== "web") void Haptics.selectionAsync();
+                  if (locked) {
+                    router.push("/support");
+                    return;
+                  }
+                  void setTheme(t.id);
+                }}
+                style={({ pressed }) => [
+                  styles.themeSwatchWrap,
+                  { opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.themeSwatch,
+                    {
+                      backgroundColor: t.swatch,
+                      borderColor: active ? PAINT.ink : PAINT.inkMute,
+                      borderWidth: active ? 3 : 1.5,
+                    },
+                  ]}
+                >
+                  {active && (
+                    <Feather name="check" size={18} color={PAINT.ink} />
+                  )}
+                  {locked && !active && (
+                    <Feather name="lock" size={14} color={PAINT.inkSoft} />
+                  )}
+                </View>
+                <Text
+                  style={[
+                    styles.themeLabel,
+                    locked && { color: PAINT.inkMute },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {t.label.split(" ")[0].toLowerCase()}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         {/* Sign out */}
         <Text style={styles.sectionTitle}>account</Text>
+        <Pressable
+          onPress={() => void restore()}
+          disabled={!rcAvailable || isRestoring}
+          style={({ pressed }) => [
+            styles.restoreLink,
+            { opacity: pressed || isRestoring ? 0.6 : 1 },
+          ]}
+        >
+          {isRestoring ? (
+            <ActivityIndicator color={PAINT.inkSoft} size="small" />
+          ) : (
+            <>
+              <Feather name="refresh-cw" size={13} color={PAINT.inkSoft} />
+              <Text style={styles.restoreLinkText}>Restore purchases</Text>
+            </>
+          )}
+        </Pressable>
         <Pressable
           onPress={onSignOut}
           disabled={busy}
@@ -666,6 +785,60 @@ const styles = StyleSheet.create({
     fontFamily: HAND_FONT,
     fontSize: 22,
     color: PAINT.red,
+  },
+  supportRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  supportTitle: {
+    fontFamily: HAND_FONT,
+    fontSize: 22,
+    color: PAINT.ink,
+    lineHeight: 26,
+  },
+  supportBody: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkSoft,
+    marginTop: 1,
+  },
+  themeRow: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    gap: 18,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  themeSwatchWrap: { alignItems: "center", gap: 6 },
+  themeSwatch: {
+    width: 60,
+    height: 60,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  themeLabel: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.ink,
+  },
+  restoreLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "center",
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  restoreLinkText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 13,
+    color: PAINT.inkSoft,
   },
   modalBackdrop: {
     flex: 1,

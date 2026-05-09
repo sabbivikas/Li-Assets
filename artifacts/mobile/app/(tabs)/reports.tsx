@@ -55,8 +55,16 @@ import {
   type ReportType,
   type ReportTypeMeta,
 } from "@/services/reportTemplate";
-import { generateReportWithAI } from "@/services/aiReport";
+import { generateReportWithAI, FreeTierCapError } from "@/services/aiReport";
+import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/expo";
+import { useSupporter } from "@/lib/revenuecat";
+import {
+  canGenerateReport,
+  FREE_REPORT_LIMIT,
+  getReportsThisMonth,
+  recordReportGenerated,
+} from "@/services/freeTierCap";
 import {
   deleteReport,
   loadReports,
@@ -83,6 +91,13 @@ export default function ReportsScreen() {
   const { lat, lng, radius, cityName } = useLocation();
   const { user } = useUser();
   const { getToken } = useAuth();
+  const router = useRouter();
+  const { isSupporter } = useSupporter();
+  const [reportsUsed, setReportsUsed] = useState<number>(0);
+
+  useEffect(() => {
+    void getReportsThisMonth().then(setReportsUsed);
+  }, []);
   const userName =
     user?.fullName ||
     user?.primaryEmailAddress?.emailAddress?.split("@")[0] ||
@@ -180,6 +195,13 @@ export default function ReportsScreen() {
     else if (step === "scope") {
       // Generate report on entering preview
       if (!nearby || lat == null || lng == null) return;
+      // Local soft cap check — server is the source of truth, but this avoids
+      // a wasted round-trip when we already know the user is over the limit.
+      if (!isSupporter && !(await canGenerateReport())) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        router.push("/support");
+        return;
+      }
       setAiError(null);
       setGenerating(true);
       const baseInputs = {
@@ -196,7 +218,17 @@ export default function ReportsScreen() {
         const token = await getToken();
         const ai = await generateReportWithAI(baseInputs, { token });
         aiOverride = ai;
+        if (!isSupporter) {
+          const next = await recordReportGenerated();
+          setReportsUsed(next);
+        }
       } catch (err) {
+        if (err instanceof FreeTierCapError) {
+          setGenerating(false);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          router.push("/support");
+          return;
+        }
         setAiError(
           err instanceof Error ? err.message : "AI generation failed; using template."
         );
@@ -351,6 +383,20 @@ export default function ReportsScreen() {
             </Pressable>
           )}
         </View>
+
+        {/* Free-tier counter */}
+        {!isSupporter && (
+          <View style={styles.capRow}>
+            <Feather name="zap" size={12} color={PAINT.inkSoft} />
+            <Text style={styles.capText}>
+              {Math.max(0, FREE_REPORT_LIMIT - reportsUsed)} of {FREE_REPORT_LIMIT}{" "}
+              free AI reports left this month
+            </Text>
+            <Pressable onPress={() => router.push("/support")} hitSlop={6}>
+              <Text style={styles.capLink}>support →</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Stepper */}
         <View style={styles.stepperRow}>
@@ -1237,6 +1283,30 @@ const styles = StyleSheet.create({
     lineHeight: 36,
   },
 
+  capRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: PAINT.cream,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: PAINT.inkMute,
+    alignSelf: "flex-start",
+  },
+  capText: {
+    fontFamily: LABEL_FONT,
+    fontSize: 12,
+    color: PAINT.inkSoft,
+  },
+  capLink: {
+    fontFamily: HAND_FONT,
+    fontSize: 14,
+    color: PAINT.ink,
+    marginLeft: 4,
+  },
   savedBtnInner: {
     flex: 1,
     flexDirection: "row",

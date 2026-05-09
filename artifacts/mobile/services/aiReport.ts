@@ -9,6 +9,17 @@ import {
 } from "@/services/iNaturalist";
 import type { GroupFilter, ReportType } from "@/services/reportTemplate";
 
+export class FreeTierCapError extends Error {
+  used: number;
+  limit: number;
+  constructor(used: number, limit: number) {
+    super("Free tier monthly cap reached.");
+    this.name = "FreeTierCapError";
+    this.used = used;
+    this.limit = limit;
+  }
+}
+
 export interface AIReportSections {
   title: string;
   executiveSummary: string;
@@ -85,6 +96,15 @@ export async function generateReportWithAI(
     signal: options?.signal,
   });
 
+  if (res.status === 402) {
+    let body: { used?: number; limit?: number } = {};
+    try {
+      body = (await res.json()) as { used?: number; limit?: number };
+    } catch {
+      /* ignore */
+    }
+    throw new FreeTierCapError(body.used ?? 0, body.limit ?? 5);
+  }
   if (!res.ok) {
     throw new Error(`AI report failed: ${res.status}`);
   }

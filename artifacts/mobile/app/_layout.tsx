@@ -23,6 +23,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LocationProvider, useLocation } from "@/context/LocationContext";
+import { PaperThemeProvider } from "@/context/PaperThemeContext";
+import { initializeRevenueCat, SupporterProvider } from "@/lib/revenuecat";
+import { useUser } from "@clerk/expo";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
 const clerkProxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
@@ -41,35 +44,36 @@ const queryClient = new QueryClient({
 function RootLayoutNav() {
   const { hasOnboarded, loading } = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
 
   if (loading || !isLoaded) return null;
 
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#fdf6e3" } }}>
-      {!isSignedIn ? (
-        <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
-      ) : !hasOnboarded ? (
-        <Stack.Screen name="onboarding" options={{ animation: "fade" }} />
-      ) : (
-        <>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="species/[id]"
-            options={{
-              headerShown: false,
-              animation: "slide_from_right",
-            }}
-          />
-          <Stack.Screen
-            name="impact/[id]"
-            options={{
-              headerShown: false,
-              animation: "slide_from_bottom",
-            }}
-          />
-        </>
-      )}
-    </Stack>
+    <SupporterProvider userId={isSignedIn ? user?.id ?? null : null}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#fdf6e3" } }}>
+        {!isSignedIn ? (
+          <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
+        ) : !hasOnboarded ? (
+          <Stack.Screen name="onboarding" options={{ animation: "fade" }} />
+        ) : (
+          <>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="species/[id]"
+              options={{ headerShown: false, animation: "slide_from_right" }}
+            />
+            <Stack.Screen
+              name="impact/[id]"
+              options={{ headerShown: false, animation: "slide_from_bottom" }}
+            />
+            <Stack.Screen
+              name="support"
+              options={{ headerShown: false, animation: "slide_from_bottom", presentation: "modal" }}
+            />
+          </>
+        )}
+      </Stack>
+    </SupporterProvider>
   );
 }
 
@@ -83,6 +87,10 @@ export default function RootLayout() {
     Caveat_700Bold,
     PatrickHand_400Regular,
   });
+
+  useEffect(() => {
+    initializeRevenueCat();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -114,13 +122,15 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <ErrorBoundary>
             <QueryClientProvider client={queryClient}>
-              <LocationProvider>
-                <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#fdf6e3" }}>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
-              </LocationProvider>
+              <PaperThemeProvider>
+                <LocationProvider>
+                  <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#fdf6e3" }}>
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </LocationProvider>
+              </PaperThemeProvider>
             </QueryClientProvider>
           </ErrorBoundary>
         </SafeAreaProvider>
