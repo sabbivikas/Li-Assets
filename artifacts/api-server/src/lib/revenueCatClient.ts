@@ -62,27 +62,39 @@ async function getRevenueCatClient() {
 
 const ENTITLEMENT_TTL_MS = 60_000;
 
+export type SupporterStatus = "supporter" | "not_supporter" | "unknown";
+
 interface CacheEntry {
-  isSupporter: boolean;
+  status: SupporterStatus;
   expiresAt: number;
 }
 const entitlementCache = new Map<string, CacheEntry>();
 
 /**
- * Returns true if the given app_user_id (Clerk userId) has the
- * "supporter" entitlement active in RevenueCat. Cached for 60s.
+ * Resolves the supporter status for the given app_user_id (Clerk userId).
+ * Cached for 60s.
  *
- * Returns false on any error (graceful degrade so AI generation
- * isn't blocked by a RevenueCat outage — but the free-tier cap
- * still applies to non-supporters in that case).
+ * Returns:
+ *   - "supporter"     — RC confirms an active entitlement
+ *   - "not_supporter" — RC confirms no active entitlement (incl. unknown customer)
+ *   - "unknown"       — RC was unreachable / errored / not configured
+ *
+ * Callers should treat "unknown" conservatively: do NOT enforce paid features
+ * (we won't grant supporter perks during an outage), but ALSO do not punish the
+ * user (we won't apply the free-tier cap when we can't tell who they are).
  */
-export async function hasSupporterEntitlement(
+export async function getSupporterStatus(
   appUserId: string,
-): Promise<boolean> {
-  if (!process.env.REVENUECAT_PROJECT_ID) return false;
+): Promise<SupporterStatus> {
+  if (!process.env.REVENUECAT_PROJECT_ID) return "unknown";
   const cached = entitlementCache.get(appUserId);
   const now = Date.now();
-  if (cached && cached.expiresAt > now) return cached.isSupporter;
+  if (cached && cached.expiresAt > now) return cached.status;
+
+  const setCache = (status: SupporterStatus, ttl = ENTITLEMENT_TTL_MS) => {
+    entitlementCache.set(appUserId, { status, expiresAt: now + ttl });
+    return status;
+  };
 
   try {
     const client = await getRevenueCatClient();
@@ -95,26 +107,22 @@ export async function hasSupporterEntitlement(
       query: { limit: 50 },
     });
     if (error) {
-      // 404 means customer doesn't exist yet (never made a purchase) — that's not a supporter.
+      // 404 = customer doesn't exist yet (never made a purchase) — definitively not a supporter.
       const isNotFound =
         typeof error === "object" &&
         error !== null &&
         "type" in error &&
         (error as { type?: string }).type === "resource_not_found";
-      if (!isNotFound) {
-        logger.warn({ err: error, appUserId }, "revenuecat entitlement check failed");
-      }
-      entitlementCache.set(appUserId, { isSupporter: false, expiresAt: now + ENTITLEMENT_TTL_MS });
-      return false;
+      if (isNotFound) return setCache("not_supporter");
+      logger.warn({ err: error, appUserId }, "revenuecat entitlement check failed");
+      // Cache "unknown" briefly to avoid hammering RC during an outage.
+      return setCache("unknown", 15_000);
     }
     // The "supporter" entitlement is the only one we provision in this project,
     // so any active entitlement on the customer means they have supporter access.
-    const isSupporter = (data?.items?.length ?? 0) > 0;
-    entitlementCache.set(appUserId, { isSupporter, expiresAt: now + ENTITLEMENT_TTL_MS });
-    return isSupporter;
+    return setCache((data?.items?.length ?? 0) > 0 ? "supporter" : "not_supporter");
   } catch (err) {
     logger.warn({ err, appUserId }, "revenuecat entitlement check threw");
-    entitlementCache.set(appUserId, { isSupporter: false, expiresAt: now + ENTITLEMENT_TTL_MS });
-    return false;
+    return setCache("unknown", 15_000);
   }
 }

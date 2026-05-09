@@ -1,20 +1,28 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
 
-import { usePaperTheme } from "@/context/PaperThemeContext";
+import { PAPER_THEMES, usePaperTheme } from "@/context/PaperThemeContext";
+import { useSupporter } from "@/lib/revenuecat";
 import { PAINT } from "./theme";
 
 /**
  * Paper-textured background. Tinted by the active paper theme so supporters
  * can switch between Classic, Forest, and Dusk palettes.
+ *
+ * If the user lost their supporter entitlement (e.g., post-churn) but a
+ * supporter-only theme is still persisted locally, we transparently fall
+ * back to the Classic palette so the perk does not leak.
  */
 export function PaperBackground() {
-  // usePaperTheme is safe inside any tab/modal screen because the provider
-  // is mounted at the root layout. Fall back to PAINT.paper if context isn't
-  // ready (during initial mount).
   let bg = PAINT.paper;
   try {
-    bg = usePaperTheme().theme.paper;
+    const { theme } = usePaperTheme();
+    const { isSupporter } = useSupporter();
+    if (theme.supporterOnly && !isSupporter) {
+      bg = PAPER_THEMES[0].paper; // Classic
+    } else {
+      bg = theme.paper;
+    }
   } catch {
     /* outside provider — use default */
   }

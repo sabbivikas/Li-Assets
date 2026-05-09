@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
-import { hasSupporterEntitlement } from "../lib/revenueCatClient.js";
+import { getSupporterStatus } from "../lib/revenueCatClient.js";
 
 const router: IRouter = Router();
 
@@ -173,11 +173,19 @@ router.post(
 
     // Free-tier monthly cap enforcement (server-side source of truth).
     // Supporters bypass the cap via active "supporter" entitlement.
+    // NOTE: counts are kept in-memory and reset on restart — acceptable for the
+    // current single-instance deployment. Move to durable storage if scaled out.
+    let shouldCountUsage = false;
+    let usageKey: string | null = null;
     if (userId !== null) {
-      const isSupporter = await hasSupporterEntitlement(userId);
-      if (!isSupporter) {
-        const key = monthlyKey(userId);
-        const used = monthlyReportCount.get(key) ?? 0;
+      const supporterStatus = await getSupporterStatus(userId);
+      // Only enforce the cap when we're confident the user is NOT a supporter.
+      // If the entitlement check is unavailable, allow the request through —
+      // the worst case is a free user briefly bypassing the cap during an RC
+      // outage, which is far better than blocking real supporters.
+      if (supporterStatus === "not_supporter") {
+        usageKey = monthlyKey(userId);
+        const used = monthlyReportCount.get(usageKey) ?? 0;
         if (used >= FREE_MONTHLY_REPORT_CAP) {
           release();
           res.status(402).json({
@@ -189,7 +197,7 @@ router.post(
           });
           return;
         }
-        monthlyReportCount.set(key, used + 1);
+        shouldCountUsage = true;
       }
     }
 
@@ -265,6 +273,10 @@ router.post(
         bullets: obj.bullets.slice(0, 3).map(String),
         recommendations: obj.recommendations.slice(0, 4).map(String),
       };
+      // Only count successful generations against the free-tier cap.
+      if (shouldCountUsage && usageKey !== null) {
+        monthlyReportCount.set(usageKey, (monthlyReportCount.get(usageKey) ?? 0) + 1);
+      }
       res.json(out);
     } catch (err) {
       req.log.error({ err }, "openai generate-report failed");
