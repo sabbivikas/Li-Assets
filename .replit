@@ -48,6 +48,7 @@ externalPort = 3002
 
 [userenv.shared]
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_bW9kZXN0LWhlcm1pdC03Mi5jbGVyay5hY2NvdW50cy5kZXYk"
+EXPO_PUBLIC_REVENUECAT_TEST_API_KEY = "test_CfycfKfrDIcdKwhCnLmgDHCruam"
 
 [nix]
 channel = "stable-25_05"
