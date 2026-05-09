@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useUser } from "@clerk/expo";
 import { File as FSFile, Paths } from "expo-file-system";
 import * as Haptics from "expo-haptics";
-import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import React, { useEffect, useState } from "react";
@@ -33,6 +32,7 @@ import { clearCache } from "@/services/cache";
 import { loadCards } from "@/services/lifeCards";
 import {
   getNotificationPrefs,
+  requestNotificationPermission,
   setNotificationPref,
   type NotificationPrefs,
 } from "@/services/notificationPrefs";
@@ -51,36 +51,12 @@ export default function SettingsScreen() {
   });
   const [exporting, setExporting] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
+  const [cacheCleared, setCacheCleared] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     void getNotificationPrefs().then(setNotifPrefs);
   }, []);
-
-  async function requestNotificationPermission(): Promise<boolean> {
-    if (Platform.OS === "web") return true;
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    if (existing === "granted") return true;
-    if (existing === "denied") {
-      Alert.alert(
-        "Notifications blocked",
-        "Natura doesn't have permission to send notifications. Enable it in your device Settings.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Open Settings", onPress: () => void Linking.openSettings() },
-        ],
-      );
-      return false;
-    }
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status === "granted") return true;
-    Alert.alert(
-      "Notifications not enabled",
-      "You can turn them on later in your device Settings.",
-      [{ text: "OK" }],
-    );
-    return false;
-  }
 
   async function handleToggle(key: keyof NotificationPrefs, value: boolean) {
     if (Platform.OS !== "web") void Haptics.selectionAsync();
@@ -145,7 +121,8 @@ export default function SettingsScreen() {
               await clearCache();
               if (Platform.OS !== "web")
                 void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert("Cache cleared", "Species data will refresh on your next visit.");
+              setCacheCleared(true);
+              setTimeout(() => setCacheCleared(false), 2500);
             } finally {
               setClearingCache(false);
             }
@@ -175,9 +152,16 @@ export default function SettingsScreen() {
                   text: "Yes, delete everything",
                   style: "destructive",
                   onPress: async () => {
+                    if (!user) {
+                      Alert.alert(
+                        "Session error",
+                        "Your session has expired. Please sign in again before deleting your account.",
+                      );
+                      return;
+                    }
                     setDeletingAccount(true);
                     try {
-                      await user?.delete();
+                      await user.delete();
                       await AsyncStorage.clear();
                       router.replace("/(auth)/sign-in");
                     } catch (err) {
@@ -300,6 +284,7 @@ export default function SettingsScreen() {
             description="Forces fresh data from iNaturalist. Reports and cards are unaffected."
             onPress={handleClearCache}
             loading={clearingCache}
+            success={cacheCleared}
           />
         </View>
 
@@ -422,29 +407,33 @@ function ActionRow({
   description,
   onPress,
   loading,
+  success = false,
 }: {
   icon: keyof typeof Feather.glyphMap;
   label: string;
   description: string;
   onPress: () => void;
   loading: boolean;
+  success?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      disabled={loading}
+      disabled={loading || success}
       style={({ pressed }) => [styles.row, { opacity: pressed || loading ? 0.7 : 1 }]}
     >
-      <View style={styles.rowIcon}>
-        <Feather name={icon} size={16} color={PAINT.ink} />
+      <View style={[styles.rowIcon, success && styles.rowIconSuccess]}>
+        <Feather name={success ? "check" : icon} size={16} color={success ? PAINT.grassDeep : PAINT.ink} />
       </View>
       <View style={styles.rowBody}>
-        <Text style={styles.rowLabel}>{label}</Text>
-        <Text style={styles.rowDesc}>{description}</Text>
+        <Text style={[styles.rowLabel, success && styles.rowLabelSuccess]}>{label}</Text>
+        <Text style={styles.rowDesc}>
+          {success ? "Done — data will refresh on next visit." : description}
+        </Text>
       </View>
       {loading ? (
         <ActivityIndicator size="small" color={PAINT.inkSoft} />
-      ) : (
+      ) : success ? null : (
         <Feather name="chevron-right" size={16} color={PAINT.inkMute} />
       )}
     </Pressable>
@@ -550,6 +539,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
+  rowIconSuccess: {
+    borderColor: PAINT.grassDeep + "55",
+    backgroundColor: PAINT.grass + "22",
+  },
+  rowLabelSuccess: { color: PAINT.grassDeep },
   rowIconDestructive: {
     borderColor: PAINT.red + "55",
     backgroundColor: PAINT.red + "11",
