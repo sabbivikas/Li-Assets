@@ -1,8 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useUser } from "@clerk/expo";
+import { File as FSFile, Paths } from "expo-file-system";
 import * as Haptics from "expo-haptics";
+import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -54,8 +57,41 @@ export default function SettingsScreen() {
     void getNotificationPrefs().then(setNotifPrefs);
   }, []);
 
+  async function requestNotificationPermission(): Promise<boolean> {
+    if (Platform.OS === "web") return true;
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    if (existing === "granted") return true;
+    if (existing === "denied") {
+      Alert.alert(
+        "Notifications blocked",
+        "Natura doesn't have permission to send notifications. Enable it in your device Settings.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => void Linking.openSettings() },
+        ],
+      );
+      return false;
+    }
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status === "granted") return true;
+    Alert.alert(
+      "Notifications not enabled",
+      "You can turn them on later in your device Settings.",
+      [{ text: "OK" }],
+    );
+    return false;
+  }
+
   async function handleToggle(key: keyof NotificationPrefs, value: boolean) {
     if (Platform.OS !== "web") void Haptics.selectionAsync();
+
+    if (value) {
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        return;
+      }
+    }
+
     const next = { ...notifPrefs, [key]: value };
     setNotifPrefs(next);
     await setNotificationPref(key, value);
@@ -72,10 +108,21 @@ export default function SettingsScreen() {
         lifeCards: cards,
       };
       const json = JSON.stringify(payload, null, 2);
-      await Share.share({
-        title: "My Natura data",
-        message: json,
-      });
+
+      const sharingAvailable = Platform.OS !== "web" && (await Sharing.isAvailableAsync());
+
+      if (sharingAvailable) {
+        const file = new FSFile(Paths.cache, "natura-export.json");
+        file.create({ overwrite: true });
+        file.write(json);
+        await Sharing.shareAsync(file.uri, {
+          mimeType: "application/json",
+          dialogTitle: "Export Natura data",
+          UTI: "public.json",
+        });
+      } else {
+        await Share.share({ title: "My Natura data", message: json });
+      }
     } catch {
       Alert.alert("Export failed", "Couldn't prepare your data. Please try again.");
     } finally {
